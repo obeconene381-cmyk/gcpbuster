@@ -4,154 +4,155 @@ import requests
 import zipfile
 from playwright.async_api import async_playwright
 
-# --- تكوين التلجرام وحساب Google ---
+# --- إعداداتك الخاصة ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "5813081202"
-# ملاحظة: استبدل بالقيم الفعلية لحسابك
-EMAIL_USER = "omarcora02@gmail.com" 
-EMAIL_PASS = "omar@2008"        
+# ⚠️ لا تنسَ وضع إيميلك وكلمة السر هنا:
+EMAIL_USER = "ضع_إيميلك_هنا@gmail.com" 
+EMAIL_PASS = "ضع_كلمة_سر_الإيميل_هنا"
+LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
 def send_telegram(text, photo_path=None):
-    """إرسال رسالة نصية أو صورة إلى التلجرام."""
+    """إرسال رسائل أو صور إلى تليجرام"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
-    if photo_path and os.path.exists(photo_path):
-        with open(photo_path, "rb") as photo:
-            try:
+    try:
+        if photo_path and os.path.exists(photo_path):
+            with open(photo_path, "rb") as photo:
                 requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": text}, files={"photo": photo})
-            except Exception as e:
-                requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": f"{text}\n\n(فشل إرسال الصورة: {e})"})
-    else:
-        requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": text})
+        else:
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": text})
+    except Exception as e:
+        print(f"Telegram Error: {e}")
 
-async def download_and_extract_buster():
-    """يحمل إضافة Buster كملف zip ويفك ضغطها، ويعيد المسار الكامل للمجلد."""
-    # رابط تحميل مباشر لأحدث إصدار من Buster (نسخة متوافقة مع Chromium)
-    # ملاحظة: قد يحتاج الرابط لتحديث إذا تغير إصدار الإضافة
-    buster_url = "https://github.com/dessant/buster/releases/download/v2.0.1/buster-chrome-2.0.1.zip"
-    buster_zip_path = "buster.zip"
-    buster_ext_path = "buster_ext"
-
-    # 1. تحميل ملف الـ zip
-    if not os.path.exists(buster_zip_path):
-        print("جاري تحميل إضافة Buster...")
-        r = requests.get(buster_url)
-        with open(buster_zip_path, "wb") as f:
+async def download_buster():
+    """استخراج أحدث إصدار لإضافة Buster من قسم Releases في GitHub تلقائياً"""
+    print("جاري البحث عن أحدث إصدار لإضافة Buster من GitHub...")
+    
+    # واجهة برمجة التطبيقات لجلب أحدث إصدار من المستودع الذي أرسلته
+    api_url = "https://api.github.com/repos/dessant/buster/releases/latest"
+    response = requests.get(api_url).json()
+    
+    download_url = None
+    # نبحث عن الملف الجاهز للمتصفح (ينتهي بـ .zip وفيه كلمة chrome)
+    for asset in response.get("assets", []):
+        if "chrome" in asset["name"].lower() and asset["name"].endswith(".zip"):
+            download_url = asset["browser_download_url"]
+            break
+            
+    if not download_url:
+        raise Exception("لم يتم العثور على رابط التحميل الجاهز في صفحة GitHub!")
+        
+    print(f"تم العثور على الرابط، جاري التحميل: {download_url}")
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    r = requests.get(download_url, headers=headers)
+    
+    # التأكد أن الملف سليم ويبدأ بترميز ملفات Zip (PK)
+    if r.status_code == 200 and r.content.startswith(b'PK'):
+        with open("buster.zip", "wb") as f:
             f.write(r.content)
-        print("تم التحميل.")
+        print("تم التحميل. جاري فك الضغط...")
+        with zipfile.ZipFile("buster.zip", "r") as zip_ref:
+            zip_ref.extractall("buster_ext")
+        return os.path.abspath("buster_ext")
+    else:
+        raise Exception("الملف المحمل ليس بصيغة zip صالحة.")
 
-    # 2. فك الضغط
-    if not os.path.exists(buster_ext_path):
-        print("جاري فك ضغط الإضافة...")
-        with zipfile.ZipFile(buster_zip_path, "r") as zip_ref:
-            zip_ref.extractall(buster_ext_path)
-        print("تم فك الضغط.")
-
-    # إعادة المسار المطلق لمجلد الإضافة
-    return os.path.abspath(buster_ext_path)
-
-async def run_automation():
-    """تقوم بتشغيل الأتمتة الكاملة."""
-    # 1. الحصول على مسار الإضافة
-    ext_path = await download_and_extract_buster()
-    print(f"مسار الإضافة المحملة: {ext_path}")
+async def run_task():
+    try:
+        ext_path = await download_buster()
+    except Exception as e:
+        send_telegram(f"❌ خطأ في تحميل الإضافة: {str(e)}")
+        return
 
     async with async_playwright() as p:
-        # 2. تشغيل المتصفح بوضع Persistent Context وتحميل الإضافة
-        # هذا هو التكوين الضروري لتشغيل الإضافات
-        print("جاري تشغيل المتصفح مع الإضافة...")
-        # نترك مسار user_data_dir فارغاً لإنشاء بروفايل مؤقت جديد في كل مرة
+        # تشغيل المتصفح وتحميل الإضافة
         context = await p.chromium.launch_persistent_context(
-            "", # user_data_dir: مسار لتخزين بيانات المستخدم (مؤقت هنا)
-            headless=False, # الإضافات لا تعمل في وضع Headless
+            "user_data_profile",
+            headless=False, # الإضافات تحتاج واجهة، وسنستخدم xvfb في Github Actions
             args=[
-                f"--disable-extensions-except={ext_path}", # تحميل الإضافة المحددة فقط
-                f"--load-extension={ext_path}", # تحميل الإضافة
-                "--no-sandbox", # ضروري لـ GitHub Actions
-                "--disable-gpu" # قد يساعد في بعض البيئات
+                f"--disable-extensions-except={ext_path}",
+                f"--load-extension={ext_path}",
+                "--no-sandbox",
+                "--disable-dev-shm-usage"
             ]
         )
-        
-        # الحصول على الصفحة الأولى (يتم فتحها تلقائياً عند launch_persistent_context)
         page = context.pages[0]
 
         try:
-            # 3. الأتمتة: تسجيل الدخول وبدء اللاب
-            # الدخول إلى جوجل سكيلز لبدء عملية تسجيل الدخول
-            print("جاري الدخول إلى Google Skills Boost...")
+            # 1. تسجيل الدخول إلى جوجل
+            print("جاري تسجيل الدخول إلى جوجل...")
+            await page.goto("https://accounts.google.com/ServiceLogin", wait_until="networkidle")
+            await page.fill('input[type="email"]', EMAIL_USER)
+            await page.keyboard.press("Enter")
+            await asyncio.sleep(4)
+            await page.fill('input[type="password"]', EMAIL_PASS)
+            await page.keyboard.press("Enter")
+            await asyncio.sleep(8) 
+
+            # 2. الذهاب إلى صفحة جوجل سكيلز
+            print("الانتقال إلى Google Skills...")
             await page.goto("https://www.cloudskillsboost.google/", wait_until="networkidle")
             
-            # النقر على Join
-            join_btn = page.locator("a.qed-button:has-text('Join')").first
-            await join_btn.click()
-            await asyncio.sleep(2)
+            try:
+                # محاولة الضغط على Join إذا لم يكن مسجلاً تلقائياً
+                if await page.get_by_role("button", name="Join").is_visible():
+                    await page.get_by_role("button", name="Join").click()
+                    await asyncio.sleep(2)
+                    await page.click("text=Sign in with Google")
+                    await asyncio.sleep(5)
+            except: pass
 
-            # تسجيل الدخول عبر جوجل
-            print("جاري بدء تسجيل الدخول بحساب Google...")
-            await page.click("text=Sign in with Google")
+            # 3. الدخول إلى اللاب
+            print("الانتقال لرابط اللاب...")
+            await page.goto(LAB_URL, wait_until="networkidle")
             
-            # إدخال الإيميل
-            await page.fill('input[type="email"]', EMAIL_USER)
-            await page.click("#identifierNext")
-            await asyncio.sleep(3)
-            
-            # إدخال الباسورد
-            await page.fill('input[type="password"]', EMAIL_PASS)
-            await page.click("#passwordNext")
-            await asyncio.sleep(10) # انتظار طويل لتخطي التحققات الأمنية المحتملة
-
-            # التوجه إلى رابط اللاب
-            lab_url = "https://www.skills.google/focuses/19146?parent=catalog"
-            print(f"جاري الانتقال إلى رابط اللاب: {lab_url}")
-            await page.goto(lab_url, wait_until="networkidle")
-
-            # الضغط على "Start Lab"
-            print("جاري الضغط على Start Lab...")
-            start_btn = page.locator("button:has-text('Start Lab')")
+            # الضغط على زر Start Lab
+            start_btn = page.locator("button:has-text('Start Lab')").first
             await start_btn.click()
             await asyncio.sleep(5)
 
-            # 4. التعامل مع الكبتشا (Buster)
-            # البحث عن iframe الكبتشا
+            # 4. التعامل مع الكبتشا وتفعيل إضافة Buster
+            print("البحث عن الكبتشا لحلها...")
             captcha_frame = None
             for frame in page.frames:
-                if "google.com/recaptcha" in frame.url:
+                # إطار مربع "أنا لست روبوت"
+                if "google.com/recaptcha/api2/anchor" in frame.url:
                     captcha_frame = frame
                     break
             
             if captcha_frame:
-                print("تم اكتشاف الكبتشا، جاري محاولة الحل...")
-                # الضغط على مربع "أنا لست روبوت"
                 await captcha_frame.click(".recaptcha-checkbox-border")
-                await asyncio.sleep(3)
+                await asyncio.sleep(4) # انتظار ظهور صور التحدي
                 
-                # الآن يظهر مربع التحدي، نبحث عن زر Buster
-                bframe = None
+                # البحث عن إطار التحدي الذي تزرع فيه Buster زرها
+                buster_frame = None
                 for frame in page.frames:
                     if "api2/bframe" in frame.url:
-                        bframe = frame
+                        buster_frame = frame
                         break
                 
-                if bframe:
-                    print("جاري الضغط على زر Buster لحل الكبتشا...")
-                    # الضغط على أيقونة Buster (تظهر كزر حل)
-                    await bframe.click("#solver-button")
-                    await asyncio.sleep(10) # انتظار أطول للإضافة لحل الكبتشا
+                if buster_frame:
+                    print("تم العثور على نافذة التحدي، جاري النقر على أيقونة Buster...")
+                    # زر Buster يحمل هذا الـ ID عادة
+                    await buster_frame.click("#solver-button")
+                    print("تم النقر! ننتظر 10 ثوانٍ ليتم الحل الآلي...")
+                    await asyncio.sleep(12) 
 
-            # 5. إنهاء المهمة وإرسال الرابط
-            print("انتظار بدء اللاب ونسخ الرابط...")
-            await asyncio.sleep(15) # انتظار إضافي لبدء اللاب فعلياً
-            current_url = page.url
-            print(f"تم الحصول على رابط اللاب: {current_url}")
-            send_telegram(f"✅ تم بدء اللاب بنجاح!\nرابط اللاب الحالي: {current_url}")
+            # 5. انتظار تفعيل اللاب
+            print("انتظار تفعيل اللاب وتجهيز السيرفر...")
+            await asyncio.sleep(15)
+            final_url = page.url
+            
+            send_telegram(f"✅ تم تشغيل اللاب بنجاح!\nرابط اللاب: {final_url}")
+            print("العملية اكتملت بنجاح.")
 
         except Exception as e:
-            print(f"حدث خطأ: {e}")
-            screenshot_path = "error.png"
-            await page.screenshot(path=screenshot_path)
-            send_telegram(f"❌ حدث خطأ أثناء الأتمتة: {str(e)}", photo_path=screenshot_path)
+            # في حال وجود خطأ، نصور الشاشة ونرسلها للتلجرام لمعرفة السبب
+            await page.screenshot(path="error_trace.png")
+            send_telegram(f"❌ حدث خطأ أثناء تشغيل اللاب:\n{str(e)[:200]}", photo_path="error_trace.png")
+            print(f"Error occurred: {e}")
         finally:
-            print("جاري إغلاق المتصفح.")
             await context.close()
 
 if __name__ == "__main__":
-    asyncio.run(run_automation())
+    asyncio.run(run_task())

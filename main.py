@@ -37,211 +37,226 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-async def diagnose_buttons(page):
-    """تشخيص: طباعة جميع الأزرار المرئية"""
+async def diagnose_page(page):
+    """تشخيص شامل للصفحة"""
     try:
+        # الحصول على جميع الأزرار
         buttons_info = await page.evaluate("""
             () => {
-                const buttons = document.querySelectorAll('button');
-                return Array.from(buttons).map((btn, i) => {
+                const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]');
+                return Array.from(buttons).map((btn, idx) => {
                     const rect = btn.getBoundingClientRect();
                     const style = window.getComputedStyle(btn);
                     return {
-                        index: i,
-                        text: btn.innerText || btn.textContent || '',
+                        index: idx,
+                        text: (btn.innerText || btn.textContent || btn.value || '').trim(),
                         class: btn.className,
                         id: btn.id,
-                        visible: style.display !== 'none' && style.visibility !== 'hidden',
+                        tag: btn.tagName,
+                        type: btn.type,
+                        visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
                         x: rect.x,
                         y: rect.y,
                         width: rect.width,
                         height: rect.height,
-                        bgColor: style.backgroundColor,
-                        clickable: btn.disabled === false
+                        disabled: btn.disabled,
+                        clickable: !btn.disabled && style.pointerEvents !== 'none'
                     };
                 });
             }
         """)
 
-        msg = "📊 الأزرار الموجودة:\n"
-        for btn in buttons_info:
-            if btn['visible'] and btn['text'].strip():
-                msg += f"\n{i+1}. '{btn['text'][:30]}' @ ({int(btn['x'])}, {int(btn['y'])}) - {btn['bgColor']}"
+        msg = "📊 الأزرار المرئية:\n"
+        visible_buttons = [b for b in buttons_info if b['visible']]
+        for i, btn in enumerate(visible_buttons[:15]):  # أول 15 زر
+            status = "🟢" if btn['clickable'] else "🔴"
+            msg += f"\n{status} {i+1}. '{btn['text'][:40]}' | class: {btn['class'][:30]}... | ({int(btn['x'])}, {int(btn['y'])})"
 
-        send_tg(msg[:4000])  # Telegram limit
-        return buttons_info
+        send_tg(msg[:4000])
+        return visible_buttons
     except Exception as e:
         send_tg(f"⚠️ خطأ في التشخيص: {e}")
         return []
 
-async def click_start_lab_all_methods(page):
-    """جميع طرق Playwright للنقر على زر Start Lab"""
+async def wait_and_find_start_button(page, timeout=30000):
+    """البحث عن زر Start Lab مع انتظار"""
+    selectors = [
+        'button:has-text("Start Lab")',
+        'button:has-text("START LAB")',
+        'button:has-text("Start lab")',
+        'button.ql-button--primary:has-text("Start")',
+        'button[class*="primary"]:has-text("Start Lab")',
+        'button[data-testid*="start"]',
+        '[role="button"]:has-text("Start Lab")',
+        'button:has-text("Launch Lab")',
+        'button:has-text("Resume Lab")',
+        'button:has-text("Begin Lab")',
+        '//button[contains(text(), "Start")]',  # XPath
+        'button >> text=Start Lab',
+    ]
+    
+    for selector in selectors:
+        try:
+            if selector.startswith('//'):
+                # XPath
+                btn = page.locator(f'xpath={selector}')
+            else:
+                btn = page.locator(selector)
+            
+            await btn.wait_for(state="visible", timeout=timeout // len(selectors))
+            count = await btn.count()
+            if count > 0:
+                send_tg(f"✅ وجدت الزر بالـ selector: {selector[:50]}")
+                return btn.first
+        except:
+            continue
+    
+    return None
 
-    # أولاً: التشخيص
-    await diagnose_buttons(page)
-
-    send_tg("🔍 البحث عن زر Start Lab بجميع الطرق...")
-
-    # الطريقة 1: المحدد الدقيق مع انتظار طويل
+async def click_start_lab_robust(page):
+    """طريقة قوية للنقر على زر Start Lab"""
+    
+    # 1. الانتظار والبحث عن الزر
+    send_tg("🔍 البحث عن زر Start Lab...")
+    btn = await wait_and_find_start_button(page)
+    
+    if not btn:
+        send_tg("❌ لم يتم العثور على الزر بالـ selectors القياسية")
+        return False
+    
+    # 2. التمرير إلى الزر
     try:
-        btn = page.locator('button.ql-button--primary:has-text("Start Lab")').first
-        await btn.wait_for(state="visible", timeout=15000)
-
-        # التحقق من أن الزر يستقبل النقرات
+        await btn.scroll_into_view_if_needed()
+        await asyncio.sleep(1)
+    except:
+        pass
+    
+    # 3. الحصول على معلومات الزر
+    try:
         box = await btn.bounding_box()
         if box:
-            send_tg(f"✅ الزر موجود في ({int(box['x'])}, {int(box['y'])})")
-
-            # محاولة 1a: النقر العادي
-            try:
-                await btn.click(timeout=10000)
-                send_tg("✅ تم النقر (طريقة 1: click)")
-                return True
-            except:
-                pass
-
-            # محاولة 1b: النقر مع force
-            try:
-                await btn.click(force=True, timeout=10000)
-                send_tg("✅ تم النقر (طريقة 2: force click)")
-                return True
-            except:
-                pass
-
-            # محاولة 1c: النقر بالإحداثيات
-            try:
-                x = box['x'] + box['width'] / 2
-                y = box['y'] + box['height'] / 2
-                await page.mouse.click(x, y)
-                send_tg("✅ تم النقر (طريقة 3: mouse coordinates)")
-                return True
-            except:
-                pass
+            send_tg(f"📍 الزر في: x={int(box['x'])}, y={int(box['y'])}, w={int(box['width'])}, h={int(box['height'])}")
+    except:
+        pass
+    
+    # 4. محاولات النقر المتعددة
+    methods = [
+        ("click", lambda: btn.click(timeout=10000)),
+        ("click force", lambda: btn.click(force=True, timeout=10000)),
+        ("dispatchEvent", lambda: btn.dispatch_event("click")),
+    ]
+    
+    for method_name, click_action in methods:
+        try:
+            await click_action()
+            send_tg(f"✅ تم النقر بنجاح بطريقة: {method_name}")
+            await asyncio.sleep(3)
+            return True
+        except Exception as e:
+            send_tg(f"⚠️ فشلت طريقة {method_name}: {str(e)[:100]}")
+            continue
+    
+    # 5. النقر بالإحداثيات
+    try:
+        box = await btn.bounding_box()
+        if box and box['width'] > 0:
+            x = box['x'] + box['width'] / 2
+            y = box['y'] + box['height'] / 2
+            await page.mouse.click(x, y)
+            send_tg("✅ تم النقر بالإحداثيات")
+            return True
     except Exception as e:
-        send_tg(f"⚠️ الطريقة 1 فشلت: {str(e)[:100]}")
-
-    # الطريقة 2: استخدام JavaScript evaluate
+        send_tg(f"⚠️ فشل النقر بالإحداثيات: {e}")
+    
+    # 6. JavaScript click
     try:
         result = await page.evaluate("""
             () => {
-                // البحث عن الزر بالنص الدقيق
-                const buttons = Array.from(document.querySelectorAll('button'));
-                const targetBtn = buttons.find(btn => {
-                    const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-                    return text === 'start lab' || text.includes('start lab');
-                });
-
-                if (targetBtn) {
-                    // التمرير والنقر
-                    targetBtn.scrollIntoView({block: 'center', behavior: 'smooth'});
-
+                const findButton = () => {
+                    // البحث بعدة طرق
+                    const selectors = [
+                        'button.ql-button--primary',
+                        'button[class*="primary"]',
+                        'button[data-testid*="start"]',
+                        'button'
+                    ];
+                    
+                    for (const sel of selectors) {
+                        const btns = document.querySelectorAll(sel);
+                        for (const btn of btns) {
+                            const text = (btn.innerText || btn.textContent || '').toLowerCase();
+                            if (text.includes('start lab') || text.includes('launch lab') || text.includes('resume lab')) {
+                                return btn;
+                            }
+                        }
+                    }
+                    return null;
+                };
+                
+                const btn = findButton();
+                if (btn) {
+                    btn.scrollIntoView({block: 'center', behavior: 'instant'});
+                    
                     // محاكاة النقر الكامل
-                    const mousedown = new MouseEvent('mousedown', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
+                    ['mousedown', 'click', 'mouseup'].forEach(type => {
+                        btn.dispatchEvent(new MouseEvent(type, {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window
+                        }));
                     });
-                    const click = new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
-                    });
-                    const mouseup = new MouseEvent('mouseup', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
-                    });
-
-                    targetBtn.dispatchEvent(mousedown);
-                    targetBtn.dispatchEvent(click);
-                    targetBtn.dispatchEvent(mouseup);
-
-                    // كمحاولة إضافية
-                    targetBtn.click();
-
-                    return {success: true, text: targetBtn.innerText};
+                    
+                    // click() الأصلي
+                    btn.click();
+                    
+                    return {success: true, text: btn.innerText};
                 }
-                return {success: false, reason: 'Button not found'};
+                return {success: false};
             }
         """)
-
-        if result and result.get('success'):
-            send_tg(f"✅ تم النقر (طريقة 4: JavaScript) - {result.get('text')}")
+        
+        if result.get('success'):
+            send_tg(f"✅ تم النقر بـ JavaScript: {result.get('text')}")
             return True
     except Exception as e:
-        send_tg(f"⚠️ الطريقة 4 فشلت: {str(e)[:100]}")
-
-    # الطريقة 5: البحث في iframe إذا وجد
-    try:
-        for frame in page.frames:
-            try:
-                btn = frame.locator('button:has-text("Start Lab")').first
-                if await btn.count() > 0:
-                    await btn.click(force=True)
-                    send_tg("✅ تم النقر (طريقة 5: inside iframe)")
-                    return True
-            except:
-                continue
-    except:
-        pass
-
-    # الطريقة 6: استخدام keyboard (Tab + Enter)
-    try:
-        # الذهاب إلى بداية الصفحة ثم الضغط Tab حتى نصل للزر
-        await page.keyboard.press("Home")
-        for i in range(20):  # 20 محاولة Tab
-            await page.keyboard.press("Tab")
-            await asyncio.sleep(0.1)
-            # التحقق إذا كان الزر النشط هو Start Lab
-            active = await page.evaluate("() => document.activeElement.innerText || document.activeElement.textContent")
-            if active and "start lab" in active.lower():
-                await page.keyboard.press("Enter")
-                send_tg("✅ تم النقر (طريقة 6: keyboard Enter)")
-                return True
-    except:
-        pass
-
-    # الطريقة 7: النقر على العنصر الأب (parent)
-    try:
-        parent = page.locator('button.ql-button--primary:has-text("Start Lab")').locator('..')
-        if await parent.count() > 0:
-            await parent.first.click(force=True)
-            send_tg("✅ تم النقر (طريقة 7: parent element)")
-            return True
-    except:
-        pass
-
-    send_tg("❌ فشلت جميع طرق النقر")
+        send_tg(f"⚠️ فشل JavaScript: {e}")
+    
     return False
 
 async def handle_recaptcha(page):
     """معالجة reCAPTCHA"""
     try:
         await asyncio.sleep(2)
-
+        
+        # البحث عن iframe الكابتشا
+        captcha_frame = None
         for frame in page.frames:
-            if "recaptcha/api2/anchor" in frame.url:
-                send_tg("🤖 كابتشا detected")
-                try:
-                    await frame.evaluate("document.querySelector('.recaptcha-checkbox-border').click()")
-                    await asyncio.sleep(5)
-                except:
-                    pass
-
-                for f in page.frames:
-                    if "api2/bframe" in f.url:
-                        try:
-                            await f.evaluate("document.querySelector('#solver-button').click()")
-                            await asyncio.sleep(15)
-                        except:
-                            pass
-                return True
-    except:
-        pass
+            if "recaptcha" in frame.url:
+                captcha_frame = frame
+                break
+        
+        if captcha_frame:
+            send_tg("🤖 reCAPTCHA detected")
+            
+            # الانتظار قليلاً للـ extension يعمل
+            await asyncio.sleep(10)
+            
+            # التحقق إذا تم الحل
+            try:
+                checkbox = captcha_frame.locator('.recaptcha-checkbox-checked')
+                if await checkbox.count() > 0:
+                    send_tg("✅ reCAPTCHA تم حلها")
+                    return True
+            except:
+                pass
+                
+    except Exception as e:
+        send_tg(f"⚠️ خطأ في معالجة الكابتشا: {e}")
+    
     return False
 
 async def run():
-    send_tg("🚀 بدء المهمة v2...")
+    send_tg("🚀 بدء المهمة v3 (مصححة)...")
     ext_path = await get_ext()
 
     async with async_playwright() as p:
@@ -261,7 +276,7 @@ async def run():
 
         context = await browser.new_context(
             viewport={"width": 1366, "height": 768},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.0.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.0.36"
         )
 
         await context.add_cookies(MY_COOKIES)
@@ -274,9 +289,12 @@ async def run():
 
             await page.screenshot(path="lab_page.png", full_page=True)
             send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
+            
+            # تشخيص الصفحة
+            await diagnose_page(page)
 
-            # محاولة النقر بجميع الطرق
-            clicked = await click_start_lab_all_methods(page)
+            # محاولة النقر
+            clicked = await click_start_lab_robust(page)
 
             if clicked:
                 await asyncio.sleep(8)
@@ -285,13 +303,20 @@ async def run():
                 await page.screenshot(path="after_start.png", full_page=True)
                 send_tg("📸 بعد الضغط", "after_start.png")
             else:
-                send_tg("❌ فشل النقر")
+                send_tg("❌ فشل النقر على الزر")
+                # محاولة أخيرة: إعادة تحميل الصفحة والمحاولة مرة أخرى
+                send_tg("🔄 إعادة المحاولة بعد إعادة التحميل...")
+                await page.reload(wait_until="networkidle")
+                await asyncio.sleep(5)
+                clicked = await click_start_lab_robust(page)
+                if clicked:
+                    send_tg("✅ نجحت المحاولة الثانية")
 
             await page.screenshot(path="final.png", full_page=True)
             send_tg(f"🏁 انتهت\n🔗 {page.url}", "final.png")
 
         except Exception as e:
-            send_tg(f"❌ خطأ: {str(e)[:200]}")
+            send_tg(f"❌ خطأ: {str(e)[:400]}")
             await page.screenshot(path="error.png", full_page=True)
             send_tg("📸 لقطة الخطأ", "error.png")
         finally:

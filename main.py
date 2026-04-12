@@ -83,7 +83,6 @@ async def click_captcha_checkbox(page):
                 await checkbox.click(force=True, delay=100)
                 send_tg("✅ تم الضغط على المربع بنجاح")
                 
-                # التقاط صورة فورية بعد الضغط لرؤية حالة الكابتشا
                 await asyncio.sleep(2)
                 img_path = "after_click_instant.png"
                 await page.screenshot(path=img_path, full_page=True)
@@ -126,75 +125,111 @@ async def handle_buster(page):
         send_tg("⚠️ لم يظهر تحدي الصوت أو تم التجاوز التلقائي.")
         return False
 
-async def run():
-    send_tg("🚀 بدء المهمة (مع البروكسي)...")
-    ext_path = await get_ext()
+async def run_attempt(p, ext_path, proxy_config, proxy_name):
+    """دالة فرعية مسؤولة عن محاولة تشغيل اللاب باستخدام بروكسي محدد"""
+    send_tg(f"🚀 محاولة بدء المهمة باستخدام البروكسي: {proxy_name}")
+    
+    browser = await p.chromium.launch(
+        headless=True,
+        proxy=proxy_config,
+        args=[
+            f"--disable-extensions-except={ext_path}",
+            f"--load-extension={ext_path}",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-blink-features=AutomationControlled",
+            "--window-size=1280,720",
+            "--lang=en-US"
+        ]
+    )
 
-    async with async_playwright() as p:
-        # إضافة البروكسي هنا
-        browser = await p.chromium.launch(
-            headless=True,
-            proxy={
-                "server": "http://node-de-91.astroproxy.com:10053",
-                "username": "ShinoharitoshiJB4",
-                "password": "bfdb58IN2"
-            },
-            args=[
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-blink-features=AutomationControlled",
-                "--window-size=1280,720",
-                "--lang=en-US"
-            ]
-        )
+    context = await browser.new_context(
+        viewport={'width': 1280, 'height': 720},
+        locale="en-US"
+    )
 
-        context = await browser.new_context(
-            viewport={'width': 1280, 'height': 720},
-            locale="en-US"
-        )
+    await context.add_cookies(MY_COOKIES)
+    page = await context.new_page()
 
-        await context.add_cookies(MY_COOKIES)
-        page = await context.new_page()
+    try:
+        send_tg(f"🌐 فتح صفحة اللاب ({proxy_name})...")
+        # مهلة 60 ثانية، إذا لم يستجب البروكسي سيفشل فوراً وننتقل للثاني
+        await page.goto(LAB_URL, timeout=60000, wait_until="domcontentloaded")
+        await asyncio.sleep(3)
 
-        try:
-            send_tg("🌐 فتح صفحة اللاب...")
-            await page.goto(LAB_URL, timeout=600000, wait_until="domcontentloaded")
+        await page.screenshot(path="lab_page.png", full_page=True)
+        send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
+
+        clicked = await click_start_lab_button(page, timeout_loop=120, post_click_wait=3)
+
+        if clicked:
+            send_tg("⏳ انتظار 5 ثوانٍ...")
             await asyncio.sleep(5)
 
-            await page.screenshot(path="lab_page.png", full_page=True)
-            send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
+            await click_captcha_checkbox(page)
+            await handle_buster(page)
 
-            clicked = await click_start_lab_button(page, timeout_loop=120, post_click_wait=3)
-
-            if clicked:
-                send_tg("⏳ انتظار 5 ثوانٍ...")
-                await asyncio.sleep(5)
-
-                await click_captcha_checkbox(page)
-                await handle_buster(page)
-
-                await asyncio.sleep(10)
-                await page.screenshot(path="after_start.png", full_page=True)
-                send_tg("📸 بعد الضغط", "after_start.png")
-            else:
-                send_tg("❌ فشل في النقر على Start Lab")
-
+            await asyncio.sleep(10)
+            await page.screenshot(path="after_start.png", full_page=True)
+            send_tg("📸 بعد الضغط", "after_start.png")
+            
             await page.screenshot(path="final.png", full_page=True)
-            send_tg(f"🏁 انتهت المهمة\n🔗 {page.url}", "final.png")
+            send_tg(f"🏁 انتهت المهمة بنجاح عبر ({proxy_name})\n🔗 {page.url}", "final.png")
+            return True # نجاح المهمة
+            
+        else:
+            send_tg("❌ فشل في النقر على Start Lab")
+            return False # فشل المهمة
 
-        except Exception as e:
-            send_tg(f"❌ خطأ: {str(e)[:200]}")
-            try:
-                await page.screenshot(path="error.png", full_page=True)
-                send_tg("📸 لقطة الخطأ", "error.png")
-            except:
-                pass
-        finally:
-            await browser.close()
+    except Exception as e:
+        send_tg(f"❌ خطأ في بروكسي {proxy_name}: {str(e)[:150]}")
+        try:
+            await page.screenshot(path="error.png", full_page=True)
+            send_tg("📸 لقطة الخطأ", "error.png")
+        except:
+            pass
+        return False # فشل المهمة (البروكسي غالباً لا يستجيب)
+    finally:
+        await browser.close()
+
+async def run():
+    ext_path = await get_ext()
+    
+    # قائمة البروكسيات بالترتيب الذي تريد تجربته
+    proxies = [
+        {
+            "name": "AstroProxy (SOCKS5)",
+            "config": {
+                "server": "socks5://node-de-91.astroproxy.com:10054",
+                "username": "ShinoharitoshiJB4",
+                "password": "bfdb58IN2"
+            }
+        },
+        {
+            "name": "البروكسي الاحتياطي (HTTP)",
+            "config": {
+                "server": "http://92.119.128.15:9996",
+                "username": "user376353",
+                "password": "y3ld6w"
+            }
+        }
+    ]
+
+    async with async_playwright() as p:
+        for proxy in proxies:
+            # نجرب تشغيل المهمة بالبروكسي الحالي
+            success = await run_attempt(p, ext_path, proxy["config"], proxy["name"])
+            
+            # إذا نجحت المهمة، نخرج من الحلقة (لا داعي لتجربة البروكسي الثاني)
+            if success:
+                break
+            else:
+                send_tg(f"🔄 جاري الانتقال للبروكسي التالي...")
+        else:
+            # تتنفذ هذه الأسطر إذا فشلت جميع البروكسيات في القائمة
+            send_tg("❌🚨 فشلت جميع البروكسيات المتاحة. يرجى التحقق من اشتراكاتك أو تجديد الـ IPs.")
 
 if __name__ == "__main__":
     asyncio.run(run())

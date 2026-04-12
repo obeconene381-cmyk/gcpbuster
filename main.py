@@ -37,189 +37,184 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-async def diagnose_page(page):
-    """تشخيص شامل للصفحة"""
+async def get_page_html(page):
+    """الحصول على HTML الكامل للصفحة"""
     try:
-        # الحصول على جميع الأزرار
-        buttons_info = await page.evaluate("""
-            () => {
-                const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]');
-                return Array.from(buttons).map((btn, idx) => {
-                    const rect = btn.getBoundingClientRect();
-                    const style = window.getComputedStyle(btn);
-                    return {
-                        index: idx,
-                        text: (btn.innerText || btn.textContent || btn.value || '').trim(),
-                        class: btn.className,
-                        id: btn.id,
-                        tag: btn.tagName,
-                        type: btn.type,
-                        visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
-                        x: rect.x,
-                        y: rect.y,
-                        width: rect.width,
-                        height: rect.height,
-                        disabled: btn.disabled,
-                        clickable: !btn.disabled && style.pointerEvents !== 'none'
-                    };
-                });
-            }
-        """)
-
-        msg = "📊 الأزرار المرئية:\n"
-        visible_buttons = [b for b in buttons_info if b['visible']]
-        for i, btn in enumerate(visible_buttons[:15]):  # أول 15 زر
-            status = "🟢" if btn['clickable'] else "🔴"
-            msg += f"\n{status} {i+1}. '{btn['text'][:40]}' | class: {btn['class'][:30]}... | ({int(btn['x'])}, {int(btn['y'])})"
-
-        send_tg(msg[:4000])
-        return visible_buttons
+        html = await page.content()
+        with open("page_source.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        return html[:50000]  # أول 50KB
     except Exception as e:
-        send_tg(f"⚠️ خطأ في التشخيص: {e}")
-        return []
+        return f"Error: {e}"
 
-async def wait_and_find_start_button(page, timeout=30000):
-    """البحث عن زر Start Lab مع انتظار"""
-    selectors = [
-        'button:has-text("Start Lab")',
-        'button:has-text("START LAB")',
-        'button:has-text("Start lab")',
-        'button.ql-button--primary:has-text("Start")',
-        'button[class*="primary"]:has-text("Start Lab")',
-        'button[data-testid*="start"]',
-        '[role="button"]:has-text("Start Lab")',
-        'button:has-text("Launch Lab")',
-        'button:has-text("Resume Lab")',
-        'button:has-text("Begin Lab")',
-        '//button[contains(text(), "Start")]',  # XPath
-        'button >> text=Start Lab',
-    ]
+async def find_start_lab_deep(page):
+    """بحث عميق عن زر Start Lab"""
     
-    for selector in selectors:
-        try:
-            if selector.startswith('//'):
-                # XPath
-                btn = page.locator(f'xpath={selector}')
-            else:
-                btn = page.locator(selector)
+    # البحث في الصفحة الرئيسية وكل الـ frames
+    search_results = await page.evaluate("""
+        () => {
+            const results = [];
             
-            await btn.wait_for(state="visible", timeout=timeout // len(selectors))
-            count = await btn.count()
-            if count > 0:
-                send_tg(f"✅ وجدت الزر بالـ selector: {selector[:50]}")
-                return btn.first
-        except:
-            continue
-    
-    return None
-
-async def click_start_lab_robust(page):
-    """طريقة قوية للنقر على زر Start Lab"""
-    
-    # 1. الانتظار والبحث عن الزر
-    send_tg("🔍 البحث عن زر Start Lab...")
-    btn = await wait_and_find_start_button(page)
-    
-    if not btn:
-        send_tg("❌ لم يتم العثور على الزر بالـ selectors القياسية")
-        return False
-    
-    # 2. التمرير إلى الزر
-    try:
-        await btn.scroll_into_view_if_needed()
-        await asyncio.sleep(1)
-    except:
-        pass
-    
-    # 3. الحصول على معلومات الزر
-    try:
-        box = await btn.bounding_box()
-        if box:
-            send_tg(f"📍 الزر في: x={int(box['x'])}, y={int(box['y'])}, w={int(box['width'])}, h={int(box['height'])}")
-    except:
-        pass
-    
-    # 4. محاولات النقر المتعددة
-    methods = [
-        ("click", lambda: btn.click(timeout=10000)),
-        ("click force", lambda: btn.click(force=True, timeout=10000)),
-        ("dispatchEvent", lambda: btn.dispatch_event("click")),
-    ]
-    
-    for method_name, click_action in methods:
-        try:
-            await click_action()
-            send_tg(f"✅ تم النقر بنجاح بطريقة: {method_name}")
-            await asyncio.sleep(3)
-            return True
-        except Exception as e:
-            send_tg(f"⚠️ فشلت طريقة {method_name}: {str(e)[:100]}")
-            continue
-    
-    # 5. النقر بالإحداثيات
-    try:
-        box = await btn.bounding_box()
-        if box and box['width'] > 0:
-            x = box['x'] + box['width'] / 2
-            y = box['y'] + box['height'] / 2
-            await page.mouse.click(x, y)
-            send_tg("✅ تم النقر بالإحداثيات")
-            return True
-    except Exception as e:
-        send_tg(f"⚠️ فشل النقر بالإحداثيات: {e}")
-    
-    # 6. JavaScript click
-    try:
-        result = await page.evaluate("""
-            () => {
-                const findButton = () => {
-                    // البحث بعدة طرق
-                    const selectors = [
-                        'button.ql-button--primary',
-                        'button[class*="primary"]',
-                        'button[data-testid*="start"]',
-                        'button'
-                    ];
-                    
-                    for (const sel of selectors) {
-                        const btns = document.querySelectorAll(sel);
-                        for (const btn of btns) {
-                            const text = (btn.innerText || btn.textContent || '').toLowerCase();
-                            if (text.includes('start lab') || text.includes('launch lab') || text.includes('resume lab')) {
-                                return btn;
-                            }
-                        }
-                    }
-                    return null;
-                };
+            // دالة للبحث في أي عنصر
+            const searchElement = (el, depth = 0) => {
+                if (depth > 10) return;
                 
-                const btn = findButton();
-                if (btn) {
-                    btn.scrollIntoView({block: 'center', behavior: 'instant'});
+                const text = (el.innerText || el.textContent || el.value || '').trim();
+                const tag = el.tagName?.toLowerCase();
+                const rect = el.getBoundingClientRect?.();
+                
+                // البحث عن نص Start Lab
+                if (text.toLowerCase().includes('start lab') || 
+                    text.toLowerCase().includes('launch lab') ||
+                    text.toLowerCase().includes('resume lab') ||
+                    text.toLowerCase().includes('begin lab')) {
                     
-                    // محاكاة النقر الكامل
-                    ['mousedown', 'click', 'mouseup'].forEach(type => {
-                        btn.dispatchEvent(new MouseEvent(type, {
+                    results.push({
+                        tag: tag,
+                        text: text.substring(0, 100),
+                        id: el.id,
+                        class: el.className,
+                        role: el.getAttribute('role'),
+                        clickable: el.tagName === 'BUTTON' || 
+                                   el.tagName === 'A' || 
+                                   el.getAttribute('role') === 'button' ||
+                                   el.onclick !== null,
+                        visible: rect && rect.width > 0 && rect.height > 0,
+                        x: rect?.x,
+                        y: rect?.y,
+                        width: rect?.width,
+                        height: rect?.height,
+                        path: getPath(el)
+                    });
+                }
+                
+                // البحث في الأبناء
+                for (const child of el.children) {
+                    searchElement(child, depth + 1);
+                }
+            };
+            
+            // الحصول على مسار العنصر
+            const getPath = (el) => {
+                const path = [];
+                while (el && el.tagName) {
+                    let selector = el.tagName.toLowerCase();
+                    if (el.id) selector += '#' + el.id;
+                    else if (el.className) selector += '.' + el.className.split(' ')[0];
+                    path.unshift(selector);
+                    el = el.parentElement;
+                }
+                return path.join(' > ');
+            };
+            
+            // البحث في body
+            searchElement(document.body);
+            
+            // البحث في Shadow DOM
+            const searchShadow = (root) => {
+                if (!root) return;
+                const walker = document.createTreeWalker(
+                    root, 
+                    NodeFilter.SHOW_ELEMENT,
+                    null,
+                    false
+                );
+                let node;
+                while (node = walker.nextNode()) {
+                    if (node.shadowRoot) {
+                        searchElement(node.shadowRoot);
+                        searchShadow(node.shadowRoot);
+                    }
+                }
+            };
+            searchShadow(document.body);
+            
+            return results;
+        }
+    """)
+    
+    return search_results
+
+async def click_by_javascript(page, element_info):
+    """النقر على عنصر باستخدام JavaScript"""
+    
+    success = await page.evaluate(f"""
+        () => {{
+            // البحث بالنص
+            const allElements = document.querySelectorAll('*');
+            for (const el of allElements) {{
+                const text = (el.innerText || el.textContent || '').toLowerCase();
+                if (text.includes('start lab')) {{
+                    // التمرير والنقر
+                    el.scrollIntoView({{block: 'center', behavior: 'instant'}});
+                    
+                    // محاكاة جميع أحداث النقر
+                    const events = ['mousedown', 'mouseup', 'click'];
+                    for (const eventType of events) {{
+                        const event = new MouseEvent(eventType, {{
                             bubbles: true,
                             cancelable: true,
                             view: window
-                        }));
-                    });
+                        }});
+                        el.dispatchEvent(event);
+                    }}
                     
-                    // click() الأصلي
-                    btn.click();
+                    // النقر الأصلي
+                    if (el.click) el.click();
                     
-                    return {success: true, text: btn.innerText};
-                }
-                return {success: false};
-            }
-        """)
-        
-        if result.get('success'):
-            send_tg(f"✅ تم النقر بـ JavaScript: {result.get('text')}")
-            return True
-    except Exception as e:
-        send_tg(f"⚠️ فشل JavaScript: {e}")
+                    // إذا كان رابط
+                    if (el.tagName === 'A' && el.href) {{
+                        window.location.href = el.href;
+                    }}
+                    
+                    return {{success: true, tag: el.tagName, text: el.innerText?.substring(0, 50)}};
+                }}
+            }}
+            return {{success: false}};
+        }}
+    """)
+    
+    return success.get('success', False)
+
+async def click_start_lab_final(page):
+    """الطريقة النهائية للنقر على Start Lab"""
+    
+    send_tg("🔍 البحث العميق عن Start Lab...")
+    
+    # 1. البحث العميق
+    results = await find_start_lab_deep(page)
+    
+    if not results:
+        send_tg("❌ لم يتم العثور على أي عنصر يحتوي على 'Start Lab'")
+        return False
+    
+    # عرض النتائج
+    msg = f"🔍 وجدت {len(results)} عنصر:\n"
+    for i, r in enumerate(results[:5]):
+        status = "🟢" if r['clickable'] else "🔴"
+        msg += f"\n{status} {i+1}. <{r['tag']}> '{r['text'][:40]}'"
+        msg += f"\n   📍 ({int(r['x'])}, {int(r['y'])}) | visible: {r['visible']}"
+    send_tg(msg[:4000])
+    
+    # 2. محاولة النقر على أول عنصر قابل للنقر
+    for element in results:
+        if element['clickable'] and element['visible']:
+            try:
+                # محاولة النقر بالـ Playwright
+                if element['x'] is not None and element['y'] is not None:
+                    await page.mouse.click(
+                        element['x'] + element['width']/2, 
+                        element['y'] + element['height']/2
+                    )
+                    send_tg(f"✅ تم النقر بالإحداثيات على: {element['text'][:30]}")
+                    return True
+            except Exception as e:
+                send_tg(f"⚠️ فشل النقر بالإحداثيات: {e}")
+    
+    # 3. محاولة JavaScript
+    send_tg("🔄 محاولة JavaScript...")
+    if await click_by_javascript(page, results[0]):
+        return True
     
     return False
 
@@ -228,35 +223,17 @@ async def handle_recaptcha(page):
     try:
         await asyncio.sleep(2)
         
-        # البحث عن iframe الكابتشا
-        captcha_frame = None
         for frame in page.frames:
             if "recaptcha" in frame.url:
-                captcha_frame = frame
-                break
-        
-        if captcha_frame:
-            send_tg("🤖 reCAPTCHA detected")
-            
-            # الانتظار قليلاً للـ extension يعمل
-            await asyncio.sleep(10)
-            
-            # التحقق إذا تم الحل
-            try:
-                checkbox = captcha_frame.locator('.recaptcha-checkbox-checked')
-                if await checkbox.count() > 0:
-                    send_tg("✅ reCAPTCHA تم حلها")
-                    return True
-            except:
-                pass
-                
-    except Exception as e:
-        send_tg(f"⚠️ خطأ في معالجة الكابتشا: {e}")
-    
+                send_tg("🤖 reCAPTCHA detected")
+                await asyncio.sleep(10)  # انتظار الـ extension
+                return True
+    except:
+        pass
     return False
 
 async def run():
-    send_tg("🚀 بدء المهمة v3 (مصححة)...")
+    send_tg("🚀 بدء المهمة v4 (بحث عميق)...")
     ext_path = await get_ext()
 
     async with async_playwright() as p:
@@ -290,11 +267,12 @@ async def run():
             await page.screenshot(path="lab_page.png", full_page=True)
             send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
             
-            # تشخيص الصفحة
-            await diagnose_page(page)
-
-            # محاولة النقر
-            clicked = await click_start_lab_robust(page)
+            # حفظ HTML للتحليل
+            html = await get_page_html(page)
+            send_tg(f"📄 HTML saved ({len(html)} chars)")
+            
+            # البحث العميق والنقر
+            clicked = await click_start_lab_final(page)
 
             if clicked:
                 await asyncio.sleep(8)
@@ -303,14 +281,7 @@ async def run():
                 await page.screenshot(path="after_start.png", full_page=True)
                 send_tg("📸 بعد الضغط", "after_start.png")
             else:
-                send_tg("❌ فشل النقر على الزر")
-                # محاولة أخيرة: إعادة تحميل الصفحة والمحاولة مرة أخرى
-                send_tg("🔄 إعادة المحاولة بعد إعادة التحميل...")
-                await page.reload(wait_until="networkidle")
-                await asyncio.sleep(5)
-                clicked = await click_start_lab_robust(page)
-                if clicked:
-                    send_tg("✅ نجحت المحاولة الثانية")
+                send_tg("❌ فشل النقر")
 
             await page.screenshot(path="final.png", full_page=True)
             send_tg(f"🏁 انتهت\n🔗 {page.url}", "final.png")

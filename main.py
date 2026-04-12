@@ -32,18 +32,6 @@ def send_tg(msg, img=None):
             requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
     except Exception as e:
         print(f"TG Error: {e}")
-
-async def download_and_extract_buster():
-    """البحث عن Buster (تم فك الضغط مسبقاً في Workflow)"""
-    possible_paths = ["buster-master", "buster-main", "buster_ext/buster-master"]
-    
-    for base_path in possible_paths:
-        if os.path.exists(base_path):
-            for root, dirs, files in os.walk(base_path):
-                if "manifest.json" in files:
-                    return os.path.abspath(root)
-    
-    return None
     
     # البحث عن مجلد src داخل المجلد المفكوك
     for root, dirs, files in os.walk(extract_to):
@@ -51,7 +39,16 @@ async def download_and_extract_buster():
             return os.path.abspath(root)
     
     return None
-
+async def get_buster_path():
+    """البحث عن Buster في المسارات المحتملة"""
+    possible_names = ["buster-master", "buster-main", "buster"]
+    
+    for name in possible_names:
+        if os.path.exists(name):
+            for root, dirs, files in os.walk(name):
+                if "manifest.json" in files:
+                    return os.path.abspath(root)
+    return None
 async def human_click(page, locator):
     """محاكاة النقر البشري"""
     try:

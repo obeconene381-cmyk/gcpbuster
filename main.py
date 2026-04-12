@@ -11,6 +11,7 @@ CHAT_ID = "8092953314"
 # =====================================
 
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
+TARGET_EMAIL = "omarcora21@gmail.com"  # يُستخدم في حال عدم ظهور قائمة الحسابات
 
 MY_COOKIES = [
     {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
@@ -82,6 +83,28 @@ async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30
         await asyncio.sleep(1)
     return False
 
+async def select_first_account_from_dropdown(page, timeout=10):
+    """ينتظر ظهور قائمة حسابات في الصفحة الحالية ويختار أول حساب"""
+    for _ in range(timeout):
+        try:
+            # محددات لقائمة الحسابات في Google Skills
+            accounts = page.locator('div[data-email], div[data-identifier], [role="menuitem"]:has-text("@gmail.com")')
+            if await accounts.count() > 0:
+                first = accounts.first
+                if await first.is_visible():
+                    email_text = await first.text_content() or "حساب غير معروف"
+                    send_tg(f"👤 اختيار أول حساب: {email_text.strip()}")
+                    await first.click()
+                    await page.wait_for_load_state("networkidle", timeout=30000)
+                    await asyncio.sleep(3)
+                    await page.screenshot(path="account_selected.png")
+                    send_tg("📸 بعد اختيار الحساب", "account_selected.png")
+                    return True
+        except:
+            pass
+        await asyncio.sleep(1)
+    return False
+
 async def run():
     send_tg("🚀 بدأت المحاولة. جاري تجهيز المتصفح...")
     ext_path = await get_ext()
@@ -112,75 +135,105 @@ async def run():
         
         send_tg("🌐 فتح صفحة اللاب...")
         await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)  # انتظار تحميل الصفحة
         
-        await page.screenshot(path="before_signin.png")
-        send_tg("📸 قبل تسجيل الدخول", "before_signin.png")
+        await page.screenshot(path="initial_page.png")
+        send_tg("📸 الصفحة الرئيسية", "initial_page.png")
         
-        # 1. النقر على Sign in
-        signin_clicked = await click_button_by_text_anywhere(page, "Sign in", exact=True, timeout_loop=10)
-        if signin_clicked:
-            send_tg("✅ تم النقر على Sign in")
-            await asyncio.sleep(3)
+        # ========== 1. محاولة اختيار حساب من القائمة المنسدلة في الصفحة الرئيسية ==========
+        send_tg("⏳ انتظار ظهور قائمة الحسابات في الصفحة (10 ثوانٍ)...")
+        account_selected = await select_first_account_from_dropdown(page, timeout=10)
         
-        # 2. النقر على "Sign in with Google"
-        google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
-        if google_clicked:
-            send_tg("✅ تم النقر على Sign in with Google")
+        if account_selected:
+            # بعد اختيار الحساب، ننتظر قليلاً ليتم تسجيل الدخول
+            await asyncio.sleep(5)
+            # نعود لصفحة اللاب إذا تغيرت
+            if "skills.google" not in page.url:
+                await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
         else:
-            send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
-        
-        await asyncio.sleep(4)
-        
-        # 3. انتظار صفحة الحسابات
-        account_page = None
-        for p in context.pages:
-            if "accounts.google.com" in p.url:
-                account_page = p
-                break
-        
-        if account_page:
-            send_tg(f"🪟 تم فتح صفحة الحسابات")
-            page = account_page
-            await page.wait_for_load_state("networkidle", timeout=30000)
-        
-        # 4. اختيار أول حساب في القائمة
-        try:
-            # انتظر ظهور أي حساب
-            await page.wait_for_selector('div[data-email], div[data-identifier]', timeout=15000)
-            first_account = page.locator('div[data-email], div[data-identifier]').first
-            if await first_account.count() > 0:
-                email_text = await first_account.text_content()
-                send_tg(f"👤 اختيار أول حساب: {email_text.strip()}")
-                await first_account.click()
-                await page.wait_for_load_state("networkidle", timeout=30000)
+            send_tg("ℹ️ قائمة الحسابات لم تظهر تلقائياً. سنقوم بعملية تسجيل الدخول اليدوية.")
+            
+            # 2. النقر على Sign in
+            signin_clicked = await click_button_by_text_anywhere(page, "Sign in", exact=True, timeout_loop=10)
+            if signin_clicked:
+                send_tg("✅ تم النقر على Sign in")
                 await asyncio.sleep(3)
-                
-                # صورة بعد اختيار الحساب
-                await page.screenshot(path="account_selected.png")
-                send_tg("📸 بعد اختيار الحساب", "account_selected.png")
-        except Exception as e:
-            send_tg(f"⚠️ لم تظهر قائمة حسابات: {str(e)[:40]}")
+            
+            # 3. النقر على "Sign in with Google"
+            google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
+            if google_clicked:
+                send_tg("✅ تم النقر على Sign in with Google")
+            else:
+                send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
+            
+            # 4. انتظار صفحة الحسابات
+            await asyncio.sleep(5)
+            account_page = None
+            for p in context.pages:
+                if "accounts.google.com" in p.url:
+                    account_page = p
+                    break
+            
+            if account_page:
+                send_tg("🪟 تم فتح صفحة الحسابات")
+                page = account_page
+                await page.wait_for_load_state("networkidle", timeout=30000)
+            
+            # 5. محاولة اختيار حساب من القائمة في صفحة accounts.google.com
+            account_selected2 = await select_first_account_from_dropdown(page, timeout=15)
+            
+            if not account_selected2:
+                # 6. إذا لم تظهر القائمة، ندخل البريد يدوياً
+                send_tg("📧 قائمة الحسابات لم تظهر، جاري إدخال البريد يدوياً...")
+                try:
+                    email_input = page.locator("input[type='email'], input[name='identifier'], #identifierId").first
+                    await email_input.wait_for(state="visible", timeout=10000)
+                    await email_input.fill(TARGET_EMAIL)
+                    send_tg(f"📧 تم إدخال البريد: {TARGET_EMAIL}")
+                    
+                    next_clicked = await click_button_by_text_anywhere(page, "Next", exact=True, timeout_loop=10)
+                    if next_clicked:
+                        send_tg("✅ تم النقر على Next")
+                        await asyncio.sleep(4)
+                        
+                        # التحقق من طلب كلمة المرور
+                        try:
+                            pass_input = page.locator("input[type='password']").first
+                            await pass_input.wait_for(state="visible", timeout=5000)
+                            send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة.")
+                            await page.screenshot(path="password_required.png")
+                            send_tg("📸 مطلوب كلمة مرور", "password_required.png")
+                            return
+                        except:
+                            send_tg("✅ لم يُطلب كلمة مرور (تم التحقق تلقائياً).")
+                    else:
+                        send_tg("⚠️ لم يتم العثور على زر Next")
+                except Exception as e:
+                    send_tg(f"❌ فشل إدخال البريد: {str(e)[:40]}")
+                    await page.screenshot(path="email_error.png")
+                    send_tg("📸 خطأ في إدخال البريد", "email_error.png")
+                    return
+            
+            # 7. العودة إلى صفحة اللاب
+            lab_page = None
+            for p in context.pages:
+                if "skills.google" in p.url and "sign_in" not in p.url:
+                    lab_page = p
+                    break
+            if lab_page:
+                page = lab_page
+                await page.bring_to_front()
+                send_tg("🔄 عدنا إلى صفحة اللاب")
+            else:
+                send_tg("🔄 إعادة فتح صفحة اللاب...")
+                await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
         
-        # 5. العودة إلى صفحة اللاب
-        lab_page = None
-        for p in context.pages:
-            if "skills.google" in p.url and "sign_in" not in p.url:
-                lab_page = p
-                break
-        if lab_page:
-            page = lab_page
-            await page.bring_to_front()
-            send_tg("🔄 عدنا إلى صفحة اللاب")
-        else:
-            send_tg("🔄 إعادة فتح صفحة اللاب...")
-            await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-        
+        # ========== بعد تسجيل الدخول (سواء تلقائي أو يدوي) ==========
         await page.screenshot(path="after_signin.png")
         send_tg("📸 بعد تسجيل الدخول", "after_signin.png")
         
-        # 6. الضغط على Start Lab
-        start_clicked = await click_button_by_text_anywhere(page, "Start Lab", exact=False, timeout_loop=10)
+        # 8. الضغط على Start Lab
+        start_clicked = await click_button_by_text_anywhere(page, "Start Lab", exact=False, timeout_loop=15)
         if not start_clicked:
             start_clicked = await click_button_by_text_anywhere(page, "بدء", exact=False, timeout_loop=5)
         if start_clicked:
@@ -188,7 +241,7 @@ async def run():
         else:
             send_tg("ℹ️ زر البدء غير موجود")
         
-        # 7. معالجة الكابتشا
+        # 9. معالجة الكابتشا
         await asyncio.sleep(5)
         try:
             await page.wait_for_selector("iframe[src*='recaptcha']", timeout=10000)

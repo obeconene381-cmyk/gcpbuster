@@ -46,66 +46,58 @@ async def get_ext():
 async def wait_and_click_start_lab(page):
     """انتظار والنقر على زر Start Lab بالطريقة الصحيحة"""
     send_tg("🔍 جاري البحث عن زر Start Lab...")
-    
+
     # محددات محددة للزر الأخضر في Google Skills
     selectors = [
         'button:has-text("Start Lab")',
         'button:has-text("START LAB")',
-        'button.ql-button--primary',  # غالباً يستخدم هذا الكلاس
+        'button.ql-button--primary',
         'button.start-lab-button',
         '[data-testid="start-lab-button"]',
         'button:has-text("Start")',
         'button.ql-button',
-        'button.mdc-button--raised',  # مادة تصميم Google
-        '//button[contains(., "Start Lab")]',  # XPath
+        'button.mdc-button--raised',
+        '//button[contains(., "Start Lab")]',
         '//button[contains(., "START LAB")]',
     ]
-    
+
     clicked = False
-    
+
     for selector in selectors:
         try:
-            # انتظار ظهور الزر والتحقق من أنه مرئي وقابل للنقر
             if selector.startswith('//'):
-                # XPath
                 locator = page.locator(f"xpath={selector}")
             else:
                 locator = page.locator(selector)
-            
-            # انتظار حتى يكون الزر مرئياً وقابلاً للنقر
+
             await locator.first.wait_for(state="visible", timeout=5000)
-            
-            # التحقق من أن الزر يحتوي على النص الصحيح (للتأكد)
+
             count = await locator.count()
             for i in range(count):
                 btn = locator.nth(i)
                 if await btn.is_visible() and await btn.is_enabled():
                     text = await btn.text_content() or ""
                     if "start" in text.lower() or "lab" in text.lower() or "بدء" in text:
-                        # التمرير إلى الزر
                         await btn.scroll_into_view_if_needed()
                         await asyncio.sleep(1)
-                        
-                        # محاولة النقر العادي أولاً
+
                         try:
                             await btn.click(timeout=5000)
                             clicked = True
-                            send_tg(f"✅ تم النقر على الزر باستخدام المحدد: {selector}")
+                            send_tg(f"✅ تم النقر على الزر")
                             return True
                         except:
-                            # إذا فشل، استخدام JavaScript
                             await btn.evaluate("element => element.click()")
                             clicked = True
-                            send_tg(f"✅ تم النقر على الزر باستخدام JavaScript: {selector}")
+                            send_tg(f"✅ تم النقر على الزر باستخدام JavaScript")
                             return True
-                        
+
         except PlaywrightTimeout:
             continue
         except Exception as e:
             print(f"محاولة فاشلة مع {selector}: {e}")
             continue
-    
-    # محاولة أخيرة: البحث في جميع الأزرار
+
     if not clicked:
         try:
             buttons = await page.query_selector_all('button')
@@ -118,26 +110,24 @@ async def wait_and_click_start_lab(page):
                     return True
         except Exception as e:
             send_tg(f"⚠️ فشل في النقر على الزر: {str(e)[:100]}")
-    
+
     return False
 
 async def handle_recaptcha(page):
     """معالجة reCAPTCHA بشكل صحيح"""
     try:
-        # البحث عن iframe الكابتشا
         recaptcha_frame = None
-        
+
         for frame in page.frames:
             if "recaptcha" in frame.url:
                 recaptcha_frame = frame
                 break
-        
+
         if not recaptcha_frame:
             return False
-        
+
         send_tg("🤖 تم اكتشاف reCAPTCHA")
-        
-        # محاولة النقر على checkbox
+
         try:
             checkbox = recaptcha_frame.locator(".recaptcha-checkbox-border")
             await checkbox.click(timeout=10000)
@@ -145,38 +135,37 @@ async def handle_recaptcha(page):
             await asyncio.sleep(5)
         except:
             pass
-        
-        # التحقق مما إذا كان هناك تحدي صوتي
+
         try:
-            # البحث عن iframe التحدي
             challenge_frame = None
             for frame in page.frames:
                 if "api2/bframe" in frame.url or "recaptcha/api2/bframe" in frame.url:
                     challenge_frame = frame
                     break
-            
+
             if challenge_frame:
                 send_tg("🔊 التحدي الصوتي ظهر، جاري استخدام Buster...")
-                
-                # محاولة النقر على زر الصوت
-                audio_btn = challenge_frame.locator("#recaptcha-audio-button")
-                await audio_btn.click(timeout=5000)
-                await asyncio.sleep(2)
-                
-                # النقر على زر Buster إذا وجد
+
+                try:
+                    audio_btn = challenge_frame.locator("#recaptcha-audio-button")
+                    await audio_btn.click(timeout=5000)
+                    await asyncio.sleep(2)
+                except:
+                    pass
+
                 try:
                     buster_btn = challenge_frame.locator("#solver-button")
                     await buster_btn.click(timeout=10000)
                     send_tg("🎯 تم تفعيل Buster")
-                    await asyncio.sleep(15)  # انتظار الحل
+                    await asyncio.sleep(15)
                 except:
                     send_tg("⚠️ لم يتم العثور على زر Buster")
-                    
+
         except Exception as e:
             print(f"خطأ في معالجة التحدي: {e}")
-            
+
         return True
-        
+
     except Exception as e:
         print(f"خطأ في معالجة الكابتشا: {e}")
         return False
@@ -184,30 +173,26 @@ async def handle_recaptcha(page):
 async def check_lab_status(page):
     """التحقق من حالة اللاب بعد الضغط"""
     try:
-        # انتظار إما ظهور المهام أو تغير URL
         await asyncio.sleep(3)
-        
-        # التحقق من وجود Task 1 أو محتوى المختبر
         content = await page.content()
-        
+
         if "Task 1" in content or "task 1" in content.lower():
             send_tg("📋 اللاب يعمل - تم اكتشاف المهام")
             return True
-            
+
         if "console.cloud.google.com" in page.url:
             send_tg("☁️ تم التحويل إلى Google Cloud Console")
             return True
-            
-        # التحقق من وجود عناصر المختبر
+
         try:
-            await page.wait_for_selector("text=/Task \\d|Open Google Console|Credentials/i", timeout=10000)
+            await page.wait_for_selector("text=/Task \d|Open Google Console|Credentials/i", timeout=10000)
             send_tg("✅ تم تأكيد بدء اللاب")
             return True
         except:
             pass
-            
+
         return False
-        
+
     except Exception as e:
         print(f"خطأ في التحقق: {e}")
         return False
@@ -215,7 +200,7 @@ async def check_lab_status(page):
 async def run():
     send_tg("🚀 بدء المهمة...")
     ext_path = await get_ext()
-    
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -231,58 +216,49 @@ async def run():
                 "--start-maximized"
             ]
         )
-        
+
         context = await browser.new_context(
-            viewport={'width': 1366, 'height': 768'},
+            viewport={"width": 1366, "height": 768},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
-        
+
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
-        
+
         try:
             send_tg("🌐 فتح صفحة اللاب...")
-            
-            # الانتقال للصفحة مع انتظار التحميل الكامل
+
             response = await page.goto(LAB_URL, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_load_state("networkidle")
-            
+
             await asyncio.sleep(3)
-            
-            # التقاط صورة أولية
+
             await page.screenshot(path="lab_page.png")
             send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
-            
-            # الضغط على زر Start Lab
+
             clicked = await wait_and_click_start_lab(page)
-            
+
             if clicked:
                 await asyncio.sleep(3)
-                
-                # التحقق من ظهور الكابتشا
                 await handle_recaptcha(page)
-                
-                # انتظار وتحقق من حالة اللاب
                 success = await check_lab_status(page)
-                
+
                 await asyncio.sleep(5)
                 await page.screenshot(path="after_start.png")
-                
+
                 if success:
                     send_tg("✅ اللاب يعمل بنجاح", "after_start.png")
                 else:
                     send_tg("⚠️ تم الضغط على الزر لكن الحالة غير مؤكدة", "after_start.png")
             else:
                 send_tg("❌ فشل في الضغط على زر Start Lab")
-                # محاولة التحقق إذا كان اللاب قد بدأ بالفعل
                 if await check_lab_status(page):
                     send_tg("✅ اللاب يعمل بالفعل!")
-            
-            # صورة نهائية كاملة
+
             await page.screenshot(path="final.png", full_page=True)
             final_url = page.url
             send_tg(f"🏁 المهمة انتهت\n🔗 الرابط: {final_url}", "final.png")
-            
+
         except Exception as e:
             error_msg = str(e)
             send_tg(f"❌ خطأ: {error_msg[:200]}")

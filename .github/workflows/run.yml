@@ -5,7 +5,7 @@ on:
 jobs:
   run-automation:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -17,14 +17,15 @@ jobs:
 
       - name: Install Requirements
         run: |
-          python -m pip install --upgrade pip
           pip install playwright requests
-          # هذه هي الخطوة اللي كانت ناقصة وتخلي المتصفح يعلق
           python -m playwright install chromium --with-deps
 
       - name: Run Playwright Script
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb
-          # تشغيل المتصفح مع الواجهة الوهمية
-          xvfb-run --auto-servernum python main.py
+          # تشغيل Xvfb في الخلفية وتحديد دقة الشاشة
+          Xvfb :99 -screen 0 1280x720x24 &
+          export DISPLAY=:99
+          # تشغيل السكريبت
+          python main.py

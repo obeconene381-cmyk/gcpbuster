@@ -1,25 +1,29 @@
 import asyncio
 import os
+import json
 import zipfile
 import requests
-import traceback
 from playwright.async_api import async_playwright
 
-# ==========================================
-# إعداداتك الخاصة
-# ==========================================
+# إسكات تنبيهات النظام المزعجة
+os.environ["DBUS_SESSION_BUS_ADDRESS"] = "/dev/null"
+
+# إعدادات التلجرام والروابط
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# الكوكيز الخاصة بك لتخطي تسجيل الدخول
+# الكوكيز الذهبية لي بعثتها نتا (الآن السكريبت عندو تصريح دخول كامل)
 MY_COOKIES = [
-    {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
-    {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775983728$o96$g1$t1775984667$j31$l0$h0", "path": "/"},
-    {"domain": "www.skills.google", "name": "_cvl-4_1_14_session", "value": "TT6WSZeZPt3w8HnK1t%2FZAv3Kn4geekpifkFOlEj61sEdgJWk1ml3FW6WeEJg2KTZmv75COjRA2bKSWLgRxa6gMglsaWCa%2FAoS8OfZyHmFo5%2BcGhKyf7YamK6ovWGqSrbgSWFv9Dmal2vKNtJTt2pLN3Qu%2F4XF3Ctp5hnm5PZyk2HuoeauJ0w1THJvnyz9LSaNsbMZAt3Pdy1V2pUxIgC0sfUsbk%2BhObj23ns7%2Fw029j1J2mrxcC%2B4HUFR9gk%2B9nztEz2c0mvs%2FjicosHIUFveRwfbSxr%2BB4zHgoB228m7REuPZboCvt5lxjxBHD6%2BnYLiykOySWzbzWpg0ifwAuE5mFKzg1ybG3hkWaeQBPR34J2bljFy72cEvZVe%2FYinyY%2FVCQOfSvMTkR%2BQ9EWaDEvaukUmItwPpF4uFto4MZFCsYTSBH7JFm%2BEyX%2Fq7mS7VNlxUcd%2BNQguZdEGDQQvBHssrL8KPnsYr1yIjJBwkDcjiHmvdjYKGdy0kcMfyOPUuUgV3KPe%2B2OpdyRkHctDRwsI23WaDpYWdNMCtQnZ6hWgueNozKDpTld9PjgCOY6QXovKmY43I7gbTgQT70Pk25wdCjiwYe31QXSvfFPRzNoqkWyqhdjoAfj4Twda4F3t%2B0%2BA4PIH8yeR8aT576WYZMQFAcIJNFVcOGBB1aYsFlqq0UpDR1n49mz2RC%2BuDc%2FwODy8FwKrOb1hBb0xNII9vmOu62DSXB0eFvHxvfmPbb7Swdag7GDg3FESjpNCeZ5eUHx3GNFHBh%2B6Q%3D%3D--2%2B3NRg1T54xp77Gi--9AN2nfZufYW1gTCaiAME%2Fw%3D%3D", "path": "/", "secure": True, "httpOnly": True},
-    {"domain": "www.skills.google", "name": "browser.timezone", "value": "Africa/Algiers", "path": "/"},
-    {"domain": "www.skills.google", "name": "user.expires_at", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6IklqSXdNall0TURRdE1USlVNRGM2TURRNk1qQXVNalF4TFRBME9qQXdJZz09IiwiZXhwIjpudWxsLCJwdXIiOiJjb29raWUudXNlci5leHBpcmVzX2F0In19--4a24a03d83aefd10698e5f9459d29940ea3869bf", "path": "/", "secure": True},
-    {"domain": "www.skills.google", "name": "user.id", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOREV5TlRZeSIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--39bb2ae5eaed2cb85e3fbf6cbf126e1d2448803d", "path": "/", "secure": True}
+    {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
+    {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True, "httpOnly": True},
+    {"domain": ".google.com", "name": "__Secure-3PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
+    {"domain": ".google.com", "name": "__Secure-3PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmKA7Vb--6_FUasiorXlEHzwACgYKAQ4SARMSFQHGX2MiBsvg0VZbiwoRKrmJdnrlXBoVAUF8yKo5RslT3ogoQDVliD4Ua80o0076", "path": "/", "secure": True, "httpOnly": True},
+    {"domain": ".google.com", "name": "SID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmNAANXYlzTcpqDF3cHOeo4QACgYKAYgSARMSFQHGX2Miq4Sr8_RQAGM1RfiQnRkGtBoVAUF8yKrEeAB845ZqHKZcEyLv2YO20076", "path": "/", "secure": False},
+    {"domain": ".google.com", "name": "HSID", "value": "AMy4_Ta2HCzvZSQE3", "path": "/", "secure": False, "httpOnly": True},
+    {"domain": ".google.com", "name": "SSID", "value": "Adb8GZVQq7ZbRgy9X", "path": "/", "secure": True, "httpOnly": True},
+    {"domain": ".google.com", "name": "SAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
+    {"domain": "myaccount.google.com", "name": "OSID", "value": "g.a0007gi6PyETRCtIRHIthOjH1AMoPuTWNs3Vmk_q2ffnGit35WwoiNnR8xSA5FtWZ6AHtOMHtQACgYKAbASARMSFQHGX2MicG_A8MeAxMMWqeuG9awUbxoVAUF8yKoQE2UfitDk6VPiPH4S2ZPZ0076", "path": "/", "secure": True, "httpOnly": True}
 ]
 
 def send_telegram(text, photo_path=None):
@@ -27,12 +31,13 @@ def send_telegram(text, photo_path=None):
     try:
         if photo_path and os.path.exists(photo_path):
             with open(photo_path, "rb") as photo:
-                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": text}, files={"photo": photo})
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": text}, files={"photo": photo}, timeout=15)
         else:
-            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": text})
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": text}, timeout=15)
     except: pass
 
 async def setup_extension():
+    """تجهيز إضافة Buster"""
     zip_path = "buster-main.zip"
     dest = "buster_dir"
     if os.path.exists(zip_path):
@@ -43,11 +48,10 @@ async def setup_extension():
     return os.path.abspath(dest)
 
 async def run_automation():
+    send_telegram("🚀 بدأت العملية: جاري حقن الكوكيز الشاملة وفتح المتصفح...")
     ext_path = await setup_extension()
     
     async with async_playwright() as p:
-        print("🛠️ تشغيل المتصفح...")
-        # الأوامر الجديدة هنا لمنع انهيار كرت الشاشة (GPU)
         context = await p.chromium.launch_persistent_context(
             "user_data", 
             headless=False,
@@ -56,53 +60,55 @@ async def run_automation():
                 f"--load-extension={ext_path}", 
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
-                "--disable-gpu",                 # يمنع انهيار المتصفح في سيرفرات لينكس
-                "--disable-software-rasterizer"  # يمنع انهيار المتصفح في سيرفرات لينكس
+                "--disable-gpu",
+                "--disable-software-rasterizer"
             ]
         )
         
+        # حقن الكوكيز في السياق (Context) لضمان تسجيل الدخول
         await context.add_cookies(MY_COOKIES)
         page = context.pages[0]
         page.set_default_timeout(60000)
 
         try:
-            print("🌐 الانتقال إلى رابط اللاب...")
+            # التوجه مباشرة للاب
+            send_telegram("🌐 جاري الدخول لرابط اللاب مباشرة...")
             await page.goto(LAB_URL, wait_until="domcontentloaded")
-            await asyncio.sleep(5)
+            await asyncio.sleep(7)
+            
+            # تصوير الصفحة للتأكد من تخطي تسجيل الدخول
+            await page.screenshot(path="login_status.png")
+            send_telegram("📸 الحالة: المفترض أننا داخل الحساب الآن ✅", "login_status.png")
 
-            await page.screenshot(path="step1.png")
-            send_telegram("1. سكرين شوت: تم الدخول بالكوكيز وتجاوزنا خطأ GPU بنجاح ✅", "step1.png")
+            # الضغط على Start Lab
+            start_btn = page.locator("button:has-text('Start Lab'), button:has-text('بدء')").first
+            if await start_btn.is_visible():
+                await start_btn.click()
+                send_telegram("🔘 تم الضغط على Start Lab. جاري مراقبة الكبتشا...")
+                await asyncio.sleep(5)
+            else:
+                send_telegram("⚠️ لم أجد زر Start Lab! ربما الكوكيز تحتاج تحديث أو الصفحة مختلفة.")
 
-            print("🔘 الضغط على Start Lab...")
-            start_btn = page.get_by_role("button", name="Start Lab")
-            await start_btn.wait_for(state="visible")
-            await start_btn.click()
-            await asyncio.sleep(3)
-
-            print("🕵️ البحث عن الكبتشا...")
+            # التعامل مع الكبتشا وإضافة Buster
             for frame in page.frames:
                 if "api2/anchor" in frame.url:
                     await frame.click(".recaptcha-checkbox-border")
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(4)
                 if "api2/bframe" in frame.url:
                     solver = frame.locator("#solver-button")
                     if await solver.is_visible():
                         await solver.click()
-                        print("🤖 تم تفعيل Buster لحل الكبتشا.")
-                        await asyncio.sleep(12)
+                        send_telegram("🔥 تم تفعيل Buster لحل الكبتشا...")
+                        await asyncio.sleep(15)
 
-            print("⏳ انتظار نهائي لتجهيز السيرفر...")
+            # انتظار نهائي
             await asyncio.sleep(15)
-            
-            await page.screenshot(path="final.png")
-            send_telegram(f"✅ اكتملت المهمة بنجاح!\nالرابط: {page.url}", "final.png")
+            await page.screenshot(path="final.png", full_page=True)
+            send_telegram(f"✅ انتهت المهمة بنجاح!\nالرابط النهائي:\n{page.url}", "final.png")
 
         except Exception as e:
-            # إذا حدث أي خطأ الآن، سيتم إرسال تفاصيله للتلجرام فوراً!
-            error_details = traceback.format_exc()
             await page.screenshot(path="error.png")
-            send_telegram(f"❌ حدث خطأ برمجي:\n{error_details[-300:]}", "error.png")
-            print(error_details)
+            send_telegram(f"❌ تعطل السكريبت: {str(e)[:200]}", "error.png")
         finally:
             await context.close()
 

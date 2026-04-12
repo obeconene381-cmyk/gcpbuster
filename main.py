@@ -73,31 +73,35 @@ async def click_start_lab_button(page, timeout_loop=120, post_click_wait=3):
     return False
 
 async def click_captcha_checkbox(page):
-    """طريقة واحدة نظيفة وقوية باستخدام frame_locator للتعامل مع الـ iframe الديناميكي"""
-    send_tg("🤛 محاولة النقر على مربع الكابتشا...")
+    send_tg("🤛 جاري البحث عن المربع في كل الـ iframes...")
     try:
-        # استخدام frame_locator هو الأفضل للـ iframes في Playwright
-        captcha_frame = page.frame_locator('iframe[src*="api2/anchor"]').first
+        # إعطاء فرصة قصيرة للصفحة لتحميل الـ iframes
+        await asyncio.sleep(3)
         
-        # تحديد مربع الاختيار
-        checkbox = captcha_frame.locator('#recaptcha-anchor')
+        # جلب جميع الـ iframes الموجودة في الصفحة
+        iframes = await page.locator('iframe').all()
         
-        # الانتظار حتى يصبح المربع مرئياً وموجوداً في الـ DOM
-        await checkbox.wait_for(state="visible", timeout=20000)
-        
-        # التمرير إليه لضمان ظهوره في الشاشة
-        await checkbox.scroll_into_view_if_needed()
-        
-        # محاكاة حركة الماوس وتأخير النقر لتبدو كحركة بشرية
-        await checkbox.hover()
-        await asyncio.sleep(0.5)
-        await checkbox.click(delay=150)
-        
-        send_tg("✅ تم النقر على مربع الكابتشا")
-        return True
-    except Exception as e:
-        send_tg(f"❌ فشل النقر على مربع الكابتشا: {str(e)[:60]}")
+        for iframe in iframes:
+            # الدخول إلى محتوى كل iframe
+            frame_content = iframe.content_frame
+            
+            # البحث عن مربع الكابتشا داخل هذا الفريم
+            checkbox = frame_content.locator('.recaptcha-checkbox-border').first
+            
+            # إذا لقينا المربع موجود
+            if await checkbox.count() > 0:
+                await checkbox.scroll_into_view_if_needed()
+                # نضغط عليه بالقوة
+                await checkbox.click(force=True, delay=100)
+                send_tg("✅ تم الضغط على المربع بنجاح")
+                return True
+                
+        send_tg("❌ لم يتم العثور على المربع في أي iframe.")
         return False
+    except Exception as e:
+        send_tg(f"❌ خطأ أثناء البحث: {str(e)[:60]}")
+        return False
+
 
 async def handle_buster(page):
     """معالجة Buster وتجنب خطأ TypeError الذي ظهر لك"""

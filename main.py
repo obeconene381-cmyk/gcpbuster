@@ -68,11 +68,18 @@ async def run():
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-features=IsolateOrigins,site-per-process",
-                "--window-size=1280,720"
+                "--window-size=1280,720",
+                "--disable-popup-blocking"  # مهم: منع حظر النوافذ المنبثقة
             ]
         )
         
-        context = await browser.new_context()
+        # سياق مع السماح بكل النوافذ المنبثقة
+        context = await browser.new_context(
+            viewport={'width': 1280, 'height': 720},
+            accept_downloads=True,
+            # إعدادات إضافية لضمان عمل popups
+            permissions=['clipboard-read', 'clipboard-write'],
+        )
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
         
@@ -92,50 +99,98 @@ async def run():
             await page.wait_for_load_state("networkidle", timeout=30000)
             await asyncio.sleep(3)
             
-            # ========== 2. انتظار صفحة sign_in والنقر على "Sign in with Google" ==========
-            try:
-                # انتظر ظهور زر "Sign in with Google" (قد يكون نصاً أو داخل link)
-                google_signin_btn = page.locator("a:has-text('Sign in with Google'), button:has-text('Sign in with Google')").first
-                await google_signin_btn.wait_for(state="visible", timeout=10000)
-                await google_signin_btn.click()
-                send_tg("🔘 تم النقر على 'Sign in with Google'")
-                await page.wait_for_load_state("networkidle", timeout=30000)
-                await asyncio.sleep(3)
-            except Exception as e:
-                send_tg(f"⚠️ لم يظهر زر 'Sign in with Google': {str(e)[:40]}")
-                # ربما تم التوجيه مباشرة لقائمة الحسابات
-                pass
+            # ========== 2. التعامل مع زر "Sign in with Google" والنافذة المنبثقة ==========
+            # نحدد الصفحة الحالية لنعرف إذا تم فتح نافذة جديدة
+            original_page = page
             
-            # ========== 3. انتظار قائمة اختيار الحساب ==========
+            # محاولة النقر على الزر باستخدام محددات متعددة
+            google_signin_selectors = [
+                "button:has-text('Sign in with Google')",
+                "a:has-text('Sign in with Google')",
+                "[role='button']:has-text('Sign in with Google')",
+                "div[role='button']:has-text('G')",  # بعض الأزرار تحوي فقط شعار G
+                ".nsm7Bb-HzV7m-LgbsSe",  # class لزر Google في بعض الصفحات
+            ]
+            
+            clicked = False
+            for selector in google_signin_selectors:
+                try:
+                    btn = page.locator(selector).first
+                    if await btn.count() > 0:
+                        await btn.click(timeout=5000)
+                        send_tg(f"✅ تم النقر على: {selector}")
+                        clicked = True
+                        break
+                except:
+                    continue
+            
+            if not clicked:
+                # محاولة أخيرة: التقاط صورة وتحليل يدوي
+                send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
+                await page.screenshot(path="no_google_btn.png")
+                send_tg("📸 صورة الصفحة الحالية", "no_google_btn.png")
+            
+            # انتظار ظهور نافذة جديدة أو تغيير URL
+            await asyncio.sleep(3)
+            
+            # البحث عن صفحة جديدة (popup)
+            pages = context.pages
+            if len(pages) > 1:
+                # توجد نافذة منبثقة جديدة
+                new_page = pages[-1]
+                send_tg(f"🪟 نافذة جديدة ظهرت: {new_page.url[:50]}")
+                await new_page.wait_for_load_state("networkidle", timeout=30000)
+                page = new_page  # نجعل النافذة الجديدة هي النشطة
+            else:
+                # ربما انتقلنا في نفس الصفحة إلى accounts.google.com
+                await page.wait_for_load_state("networkidle", timeout=30000)
+                if "accounts.google.com" in page.url:
+                    send_tg("✅ انتقلنا إلى صفحة حسابات Google")
+            
+            # ========== 3. اختيار الحساب (omarcora) ==========
             try:
-                await page.wait_for_selector('div[data-email]', timeout=15000)
-                accounts = page.locator('div[data-email]')
+                # انتظر ظهور قائمة الحسابات (قد تكون في صفحة accounts.google.com)
+                await page.wait_for_selector('div[data-email], div[data-identifier]', timeout=20000)
+                accounts = page.locator('div[data-email], div[data-identifier]')
                 target_account = accounts.filter(has_text="omarcora").first
                 
                 if await target_account.count() > 0:
-                    send_tg("✅ وجدت حساب omarcora، جاري النقر عليه...")
+                    send_tg("✅ وجدت حساب omarcora، جاري النقر...")
                     await target_account.click()
                     await page.wait_for_load_state("networkidle", timeout=30000)
                     await asyncio.sleep(3)
-                    send_tg("✅ تم اختيار الحساب. الآن يجب أن يتم تسجيل الدخول تلقائياً.")
+                    send_tg("✅ تم اختيار الحساب.")
                 else:
-                    send_tg("⚠️ لم يتم العثور على حساب يبدأ بـ omarcora. التقاط قائمة الحسابات...")
+                    send_tg("⚠️ لم يتم العثور على omarcora، التقاط قائمة الحسابات...")
                     await page.screenshot(path="accounts_list.png")
                     send_tg("📸 قائمة الحسابات المتاحة", "accounts_list.png")
             except Exception as e:
-                send_tg(f"⚠️ لم تظهر قائمة اختيار الحساب: {str(e)[:50]}")
+                send_tg(f"⚠️ لم تظهر قائمة الحسابات: {str(e)[:50]}")
+                # ربما تم تسجيل الدخول تلقائياً
+                pass
+            
+            # ========== 4. بعد تسجيل الدخول، يجب العودة لصفحة اللاب ==========
+            # إذا كنا في صفحة منبثقة، ننتظر إغلاقها أو نعود للصفحة الأصلية
+            await asyncio.sleep(3)
+            # إذا كانت الصفحة الحالية ليست skills.google، نرجع للصفحة الأصلية
+            if "skills.google" not in page.url:
+                # ابحث عن صفحة skills.google في context
+                for p in context.pages:
+                    if "skills.google" in p.url:
+                        page = p
+                        await page.bring_to_front()
+                        send_tg("🔄 عدنا إلى صفحة اللاب.")
+                        break
+                else:
+                    # إذا لم نجد، نفتح اللاب مجدداً
+                    send_tg("🔄 إعادة فتح صفحة اللاب...")
+                    page = original_page
+                    await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
             
             await page.screenshot(path="after_signin.png")
-            send_tg("📸 بعد محاولة تسجيل الدخول", "after_signin.png")
+            send_tg("📸 بعد تسجيل الدخول", "after_signin.png")
         else:
             send_tg("ℹ️ زر Sign in غير موجود. ربما أنت مسجل الدخول مسبقاً.")
-        
-        # ========== 4. العودة إلى صفحة اللاب (إذا انتقلنا) ==========
-        await asyncio.sleep(3)
-        if "skills.google" not in page.url:
-            send_tg("🔄 إعادة التوجيه لصفحة اللاب...")
-            await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-            await asyncio.sleep(3)
         
         # ========== 5. الضغط على Start Lab ==========
         try:

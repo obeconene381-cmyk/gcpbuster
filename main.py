@@ -6,7 +6,6 @@ import re
 import tempfile
 from playwright.async_api import async_playwright
 
-# إعدادات التيليجرام
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 
@@ -42,7 +41,7 @@ async def get_ext():
     return os.path.abspath(dest)
 
 async def run():
-    send_tg("⚙️ جاري بدء المهمة وإعداد الصور...")
+    send_tg("⚙️ جاري بدء المهمة (تفعيل ضغط الـ JavaScript)...")
     ext_path = await get_ext()
     temp_dir = tempfile.mkdtemp()
     
@@ -58,33 +57,39 @@ async def run():
             await page.goto(LAB_URL, wait_until="networkidle")
             await asyncio.sleep(6)
             
-            # صورة 1: صفحة اللاب عند الدخول
             await page.screenshot(path="step1.png")
             send_tg("📸 1. تم فتح صفحة اللاب بنجاح.", "step1.png")
 
-            # محاولة النقر على الزر بمحددات متعددة
             send_tg("🔍 جاري البحث عن زر Start Lab...")
             
-            # قائمة المحددات (Selectors) الأكثر دقة
             selectors = ["button.ql-button", "button:has-text('Start Lab')", ".js-start-lab-button"]
             clicked = False
             
-            for selector in selectors:
-                for target in [page] + page.frames:
-                    try:
-                        btn = target.locator(selector).first
-                        if await btn.is_visible():
-                            await btn.click(force=True)
-                            clicked = True
-                            break
-                    except: continue
+            # محاولة الضغط القوي
+            for _ in range(15): # المحاولة لمدة 15 ثانية
+                for selector in selectors:
+                    for target in [page] + page.frames:
+                        try:
+                            # جلب جميع الأزرار التي تطابق الوصف
+                            locs = target.locator(selector)
+                            count = await locs.count()
+                            for i in range(count):
+                                btn = locs.nth(i)
+                                if await btn.is_visible():
+                                    # إجبار المتصفح على الضغط عبر جافا سكريبت متجاوزاً أي عوائق
+                                    await btn.evaluate("node => node.click()")
+                                    clicked = True
+                                    break
+                        except: continue
+                        if clicked: break
+                    if clicked: break
                 if clicked: break
+                await asyncio.sleep(1)
 
             if clicked:
-                send_tg("✅ تم العثور على الزر والضغط عليه.")
-                await asyncio.sleep(5)
+                send_tg("✅ تم العثور على الزر وإجباره على النقر بنجاح.")
+                await asyncio.sleep(6)
                 
-                # صورة 2: بعد الضغط (هل ظهرت الكبتشا؟)
                 await page.screenshot(path="after_click.png")
                 send_tg("📸 2. الحالة بعد الضغط على الزر.", "after_click.png")
 
@@ -99,7 +104,7 @@ async def run():
                         await asyncio.sleep(15)
             else:
                 await page.screenshot(path="failed.png")
-                send_tg("❌ لم أتمكن من العثور على الزر برمجياً رغم وجوده في الصورة.", "failed.png")
+                send_tg("❌ لم يتمكن من النقر على الزر.", "failed.png")
 
             await asyncio.sleep(10)
             await page.screenshot(path="final.png")

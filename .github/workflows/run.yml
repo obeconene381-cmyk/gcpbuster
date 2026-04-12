@@ -1,11 +1,13 @@
 name: Google Skills Automation
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # تشغيل تلقائي كل 6 ساعات
+  workflow_dispatch:  # تشغيل يدوي
 
 jobs:
   run-automation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # استخدام 22.04 لتجنب مشاكل المستودعات
     timeout-minutes: 15
 
     steps:
@@ -17,16 +19,45 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Requirements
+      - name: Install System Dependencies
         run: |
+          sudo apt-get update --fix-missing || true
+          sudo apt-get install -y --no-install-recommends \
+            libnss3 libatk-bridge2.0-0 libxss1 libgtk-3-0 \
+            libgbm1 libasound2 libxshmfence1 libx11-xcb1 \
+            libxcomposite1 libxcursor1 libxdamage1 libxi6 \
+            libxtst6 libappindicator3-1 libxrandr2 libxss1 \
+            libxtst6 xdg-utils fonts-liberation wget unzip
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Python Packages
+        run: |
+          pip install --upgrade pip
           pip install playwright requests
-          playwright install chromium --with-deps
+
+      - name: Install Playwright Chromium
+        run: |
+          python -m playwright install chromium
 
       - name: Download Buster Extension
         run: |
-          if [ ! -f "buster-main.zip" ]; then
-            wget -q -O buster-main.zip https://github.com/dessant/buster/archive/refs/heads/main.zip
-          fi
+          wget -q -O buster.zip https://github.com/dessant/buster/archive/refs/heads/master.zip
+          unzip -q buster.zip
+          ls -la
 
-      - name: Run Playwright Script
-        run: python main.py
+      - name: Run Automation Script
+        run: python bot.py
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - name: Upload Screenshots & Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automation-results
+          path: |
+            *.png
+            *.jpg
+            *.zip
+          retention-days: 7

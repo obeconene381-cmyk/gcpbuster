@@ -10,260 +10,102 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 # =====================================
 
+BASE_URL = "https://www.skills.google/"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
-TARGET_EMAIL = "omarcora21@gmail.com"  # يُستخدم في حال عدم ظهور قائمة الحسابات
 
+# الكوكيز الجديدة التي استخرجتها (جلسة نشطة 100%)
 MY_COOKIES = [
-    {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
-    {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True},
-    {"domain": ".google.com", "name": "__Secure-3PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
-    {"domain": ".google.com", "name": "__Secure-3PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmKA7Vb--6_FUasiorXlEHzwACgYKAQ4SARMSFQHGX2MiBsvg0VZbiwoRKrmJdnrlXBoVAUF8yKo5RslT3ogoQDVliD4Ua80o0076", "path": "/", "secure": True},
-    {"domain": ".google.com", "name": "SID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmNAANXYlzTcpqDF3cHOeo4QACgYKAYgSARMSFQHGX2Miq4Sr8_RQAGM1RfiQnRkGtBoVAUF8yKrEeAB845ZqHKZcEyLv2YO20076", "path": "/"},
-    {"domain": ".google.com", "name": "HSID", "value": "AMy4_Ta2HCzvZSQE3", "path": "/"},
-    {"domain": ".google.com", "name": "SSID", "value": "Adb8GZVQq7ZbRgy9X", "path": "/", "secure": True},
-    {"domain": ".google.com", "name": "SAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
-    {"domain": "myaccount.google.com", "name": "OSID", "value": "g.a0007gi6PyETRCtIRHIthOjH1AMoPuTWNs3Vmk_q2ffnGit35WwoiNnR8xSA5FtWZ6AHtOMHtQACgYKAbASARMSFQHGX2MicG_A8MeAxMMWqeuG9awUbxoVAUF8yKoQE2UfitDk6VPiPH4S2ZPZ0076", "path": "/", "secure": True}
+    {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
+    {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775996404$o97$g1$t1775996563$j32$l0$h0", "path": "/"},
+    {"domain": "www.skills.google", "name": "_cvl-4_1_14_session", "value": "lQa%2FMnKdErx31nYRawt27XpphO7RO1Mod3%2FCk8T6PqZfkPZohBUhjBqhs2Mw1GIO229gr0KDHGkAp%2F9o7Blffpj%2BNy7YVlSwMKrQX3%2B0RxdyBzB0LU%2BFdcq5wLCPFWUPMhJNMngGjgVjse8JNXc1BO1j2FUpFQqvzAVGdPUShDJMshUZOva39naRS%2BVT%2BpBdaPE0I%2FgjsG6fC6KFeGqADXbUOQ36JiZQkoXYIjuKCxrOKwyaLKj7fFRebXiBduQKQIH3JK8bvcn0LkvK8BuvZ262zjAku4%2FkzRdFKfsfQMXrZStwGytxy1dqm%2FoQ6Lut8s9fnFVTGGcYIoJoxwba0Yx653S2FCemxd3GSCCqfGuNfuzRfNSCjsYvAeUmPdkQzepE80F3hbK15UUyM%2B2Puh3e4e%2FoovbnYf0xLZFGrxSpTcgJ5zb1FElGZ9LNFypWppJjbPlIySkS6X00pjko3fzmpi2TmUHvdBfPbn7ZmJbQ%2Fa8mQzvispzCN8GaAavsOZ%2FsD6xOt0%2FukYWX4oyXfRQg8AP8iZvYkj1iOvsbagPMKjp7utfL9DzDJ5n7LorhayjfSh9XLi1us38cm%2Fu8fzdbvLJn0DJ7koAN2V8V2KKLiGrU2H3e2z4pAFvTAmFENKac3LdIOOs2oNNj2Z8yF0iEnprV%2FzPeOb7eCcvFU66A6qb3f4SgUOTFVchEXizCrTx0%2FvdEQhoQG%2Boc3WXvnYtDbpPIuyt0BJSUda0e63hfWvQnww7DjHcdLtchLMoGYyOW0UktBRGkG3s%3D--TF35bd8CfnDqO%2BYr--Bp220SPOMrUj1y6NmvAiVw%3D%3D", "path": "/", "secure": True, "httpOnly": True},
+    {"domain": "www.skills.google", "name": "browser.timezone", "value": "Africa/Algiers", "path": "/"},
+    {"domain": "www.skills.google", "name": "user.expires_at", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6IklqSXdNall0TURRdE1USlVNVEE2TWpJNk5EQXVPVFF5TFRBME9qQXdJZz09IiwiZXhwIjpudWxsLCJwdXIiOiJjb29raWUudXNlci5leHBpcmVzX2F0In19--4e4003b1ef46679dd053dc0a5fa9e9f1ee8b1798", "path": "/", "secure": True},
+    {"domain": "www.skills.google", "name": "user.id", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOVE13TmpJMyIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--3706d9f3abb091776145342b4e9be6e645941d44", "path": "/", "secure": True}
 ]
 
 def send_tg(msg, img=None):
-    print(f"\n📨 {msg[:50]}...")
-    if not BOT_TOKEN or not CHAT_ID:
-        return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
     try:
         if img and os.path.exists(img):
             with open(img, "rb") as f:
-                response = requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=15)
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=15)
         else:
-            response = requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
-        if response.status_code == 200:
-            print("✅ تم الإرسال.")
-        else:
-            print(f"❌ خطأ تيليجرام {response.status_code}: {response.text}")
-    except Exception as e:
-        print(f"❌ استثناء: {e}")
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
+    except: pass
 
 async def get_ext():
     zip_p = "buster-main.zip"
     dest = "ext_folder"
     if os.path.exists(zip_p):
-        with zipfile.ZipFile(zip_p, 'r') as z:
-            z.extractall(dest)
+        with zipfile.ZipFile(zip_p, 'r') as z: z.extractall(dest)
         for r, d, f in os.walk(dest):
-            if "manifest.json" in f:
-                return os.path.abspath(r)
+            if "manifest.json" in f: return os.path.abspath(r)
     return os.path.abspath(dest)
 
-async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30, post_click_wait=3):
-    pattern = re.compile(rf"^\s*{re.escape(text)}\s*$", re.I) if exact else re.compile(re.escape(text), re.I)
-    async def _post_click_stabilize():
-        try: await page.wait_for_load_state("domcontentloaded", timeout=2000)
-        except: pass
-        await asyncio.sleep(post_click_wait)
-
-    for _ in range(timeout_loop):
-        for target in [page] + list(page.frames):
-            try:
-                locators = [
-                    target.get_by_role("button", name=pattern),
-                    target.get_by_role("link", name=pattern),
-                    target.locator(f"button:has-text('{text}')"),
-                    target.locator(f"a:has-text('{text}')"),
-                    target.locator(f"[role='button']:has-text('{text}')"),
-                ]
-                for loc in locators:
-                    for i in range(await loc.count()):
-                        btn = loc.nth(i)
-                        if await btn.is_visible() and await btn.is_enabled():
-                            await btn.scroll_into_view_if_needed(timeout=1000)
-                            await btn.click(timeout=3000, force=True)
-                            await _post_click_stabilize()
-                            return True
-            except: pass
-        await asyncio.sleep(1)
-    return False
-
-async def select_first_account_from_dropdown(page, timeout=10):
-    """ينتظر ظهور قائمة حسابات في الصفحة الحالية ويختار أول حساب"""
-    for _ in range(timeout):
-        try:
-            # محددات لقائمة الحسابات في Google Skills
-            accounts = page.locator('div[data-email], div[data-identifier], [role="menuitem"]:has-text("@gmail.com")')
-            if await accounts.count() > 0:
-                first = accounts.first
-                if await first.is_visible():
-                    email_text = await first.text_content() or "حساب غير معروف"
-                    send_tg(f"👤 اختيار أول حساب: {email_text.strip()}")
-                    await first.click()
-                    await page.wait_for_load_state("networkidle", timeout=30000)
-                    await asyncio.sleep(3)
-                    await page.screenshot(path="account_selected.png")
-                    send_tg("📸 بعد اختيار الحساب", "account_selected.png")
-                    return True
-        except:
-            pass
-        await asyncio.sleep(1)
-    return False
-
 async def run():
-    send_tg("🚀 بدأت المحاولة. جاري تجهيز المتصفح...")
+    send_tg("🚀 بدأت المحاولة باستخدام الكوكيز الجديدة...")
     ext_path = await get_ext()
     
     async with async_playwright() as p:
+        # تشغيل المتصفح (Headless=True لضمان السرعة في جيتهاب)
         browser = await p.chromium.launch(
             headless=True,
-            args=[
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--window-size=1280,720",
-                "--disable-popup-blocking"
-            ]
+            args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
         )
+        context = await browser.new_context(viewport={'width': 1280, 'height': 720})
         
-        context = await browser.new_context(
-            viewport={'width': 1280, 'height': 720},
-            accept_downloads=True,
-        )
+        # 1. حقن الكوكيز قبل أي عملية دخول
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
-        
-        send_tg("🌐 فتح صفحة اللاب...")
-        await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-        await asyncio.sleep(5)  # انتظار تحميل الصفحة
-        
-        await page.screenshot(path="initial_page.png")
-        send_tg("📸 الصفحة الرئيسية", "initial_page.png")
-        
-        # ========== 1. محاولة اختيار حساب من القائمة المنسدلة في الصفحة الرئيسية ==========
-        send_tg("⏳ انتظار ظهور قائمة الحسابات في الصفحة (10 ثوانٍ)...")
-        account_selected = await select_first_account_from_dropdown(page, timeout=10)
-        
-        if account_selected:
-            # بعد اختيار الحساب، ننتظر قليلاً ليتم تسجيل الدخول
-            await asyncio.sleep(5)
-            # نعود لصفحة اللاب إذا تغيرت
-            if "skills.google" not in page.url:
-                await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-        else:
-            send_tg("ℹ️ قائمة الحسابات لم تظهر تلقائياً. سنقوم بعملية تسجيل الدخول اليدوية.")
-            
-            # 2. النقر على Sign in
-            signin_clicked = await click_button_by_text_anywhere(page, "Sign in", exact=True, timeout_loop=10)
-            if signin_clicked:
-                send_tg("✅ تم النقر على Sign in")
-                await asyncio.sleep(3)
-            
-            # 3. النقر على "Sign in with Google"
-            google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
-            if google_clicked:
-                send_tg("✅ تم النقر على Sign in with Google")
-            else:
-                send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
-            
-            # 4. انتظار صفحة الحسابات
-            await asyncio.sleep(5)
-            account_page = None
-            for p in context.pages:
-                if "accounts.google.com" in p.url:
-                    account_page = p
-                    break
-            
-            if account_page:
-                send_tg("🪟 تم فتح صفحة الحسابات")
-                page = account_page
-                await page.wait_for_load_state("networkidle", timeout=30000)
-            
-            # 5. محاولة اختيار حساب من القائمة في صفحة accounts.google.com
-            account_selected2 = await select_first_account_from_dropdown(page, timeout=15)
-            
-            if not account_selected2:
-                # 6. إذا لم تظهر القائمة، ندخل البريد يدوياً
-                send_tg("📧 قائمة الحسابات لم تظهر، جاري إدخال البريد يدوياً...")
-                try:
-                    email_input = page.locator("input[type='email'], input[name='identifier'], #identifierId").first
-                    await email_input.wait_for(state="visible", timeout=10000)
-                    await email_input.fill(TARGET_EMAIL)
-                    send_tg(f"📧 تم إدخال البريد: {TARGET_EMAIL}")
-                    
-                    next_clicked = await click_button_by_text_anywhere(page, "Next", exact=True, timeout_loop=10)
-                    if next_clicked:
-                        send_tg("✅ تم النقر على Next")
-                        await asyncio.sleep(4)
-                        
-                        # التحقق من طلب كلمة المرور
-                        try:
-                            pass_input = page.locator("input[type='password']").first
-                            await pass_input.wait_for(state="visible", timeout=5000)
-                            send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة.")
-                            await page.screenshot(path="password_required.png")
-                            send_tg("📸 مطلوب كلمة مرور", "password_required.png")
-                            return
-                        except:
-                            send_tg("✅ لم يُطلب كلمة مرور (تم التحقق تلقائياً).")
-                    else:
-                        send_tg("⚠️ لم يتم العثور على زر Next")
-                except Exception as e:
-                    send_tg(f"❌ فشل إدخال البريد: {str(e)[:40]}")
-                    await page.screenshot(path="email_error.png")
-                    send_tg("📸 خطأ في إدخال البريد", "email_error.png")
-                    return
-            
-            # 7. العودة إلى صفحة اللاب
-            lab_page = None
-            for p in context.pages:
-                if "skills.google" in p.url and "sign_in" not in p.url:
-                    lab_page = p
-                    break
-            if lab_page:
-                page = lab_page
-                await page.bring_to_front()
-                send_tg("🔄 عدنا إلى صفحة اللاب")
-            else:
-                send_tg("🔄 إعادة فتح صفحة اللاب...")
-                await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-        
-        # ========== بعد تسجيل الدخول (سواء تلقائي أو يدوي) ==========
-        await page.screenshot(path="after_signin.png")
-        send_tg("📸 بعد تسجيل الدخول", "after_signin.png")
-        
-        # 8. الضغط على Start Lab
-        start_clicked = await click_button_by_text_anywhere(page, "Start Lab", exact=False, timeout_loop=15)
-        if not start_clicked:
-            start_clicked = await click_button_by_text_anywhere(page, "بدء", exact=False, timeout_loop=5)
-        if start_clicked:
-            send_tg("🔘 تم الضغط على بدء المهمة")
-        else:
-            send_tg("ℹ️ زر البدء غير موجود")
-        
-        # 9. معالجة الكابتشا
-        await asyncio.sleep(5)
+        page.set_default_timeout(60000)
+
         try:
-            await page.wait_for_selector("iframe[src*='recaptcha']", timeout=10000)
-            anchor_frame = page.frame_locator("iframe[title='reCAPTCHA']").first
-            await anchor_frame.locator(".recaptcha-checkbox-border").click(timeout=5000)
-            await asyncio.sleep(3)
+            # 2. الدخول للصفحة الرئيسية أولاً لتثبيت الجلسة
+            send_tg("🌐 الدخول للصفحة الرئيسية لتثبيت الجلسة...")
+            await page.goto(BASE_URL, wait_until="networkidle")
+            await asyncio.sleep(4)
             
-            challenge_frame = page.frame_locator("iframe[title*='recaptcha challenge']").first
-            if await challenge_frame.locator("#rc-imageselect").count() > 0:
-                send_tg("🤖 تحدي صور ظهر، جاري استخدام Buster...")
-                await challenge_frame.locator("#solver-button").wait_for(state="visible", timeout=10000)
-                await challenge_frame.locator("#solver-button").click()
-                await asyncio.sleep(12)
-                send_tg("✅ Buster قام بمحاولة الحل.")
-        except Exception:
-            send_tg("ℹ️ لم تظهر كابتشا.")
-        
-        await asyncio.sleep(5)
-        await page.screenshot(path="final.png")
-        send_tg(f"✅ المهمة انتهت.\nالرابط: {page.url}", "final.png")
-        
-        await browser.close()
+            # 3. الانتقال لرابط اللاب مباشرة
+            send_tg("🔗 الانتقال لرابط اللاب المستهدف...")
+            await page.goto(LAB_URL, wait_until="networkidle")
+            await asyncio.sleep(5)
+            
+            # تصوير الصفحة للتأكد من حالة الدخول
+            await page.screenshot(path="check_lab.png")
+            send_tg("📸 تحقق من حالة اللاب (يجب أن نكون مسجلين الدخول)", "check_lab.png")
+
+            # 4. الضغط على Start Lab (البحث عن الزر كما في السكريبت الأصلي)
+            send_tg("🔘 محاولة بدء اللاب...")
+            start_btn = page.locator("button:has-text('Start Lab'), button:has-text('بدء')").first
+            if await start_btn.is_visible():
+                await start_btn.click()
+                await asyncio.sleep(5)
+                
+                # 5. معالجة الكبتشا إذا ظهرت
+                try:
+                    for frame in page.frames:
+                        if "api2/anchor" in frame.url:
+                            await frame.click(".recaptcha-checkbox-border")
+                            await asyncio.sleep(3)
+                        if "api2/bframe" in frame.url:
+                            send_tg("🤖 حل الكبتشا بواسطة Buster...")
+                            await frame.locator("#solver-button").click()
+                            await asyncio.sleep(15)
+                except:
+                    pass
+            else:
+                send_tg("⚠️ زر البدء غير موجود، قد تحتاج لتحديث الكوكيز.")
+
+            # انتظار نهائي وتصوير النتيجة
+            await asyncio.sleep(10)
+            await page.screenshot(path="final_result.png")
+            send_tg(f"✅ انتهت العملية. الرابط الحالي:\n{page.url}", "final_result.png")
+
+        except Exception as e:
+            await page.screenshot(path="error.png")
+            send_tg(f"❌ حدث خطأ: {str(e)[:150]}", "error.png")
+        finally:
+            await browser.close()
 
 if __name__ == "__main__":
     asyncio.run(run())

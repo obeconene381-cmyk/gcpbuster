@@ -9,7 +9,7 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# إعدادات البروكسي الشغال (تم حذف استرو)
+# البروكسي الشغال
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
     "username": "user376353",
@@ -42,10 +42,10 @@ async def get_ext():
             if "manifest.json" in f: return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# --- دالة الضغط على Start Lab ---
+# --- دالة الضغط على Start Lab (بدون تغيير) ---
 async def click_start_lab_button(page):
     pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
-    for _ in range(60): # محاولة لمدة دقيقة
+    for _ in range(60): 
         for target in [page] + list(page.frames):
             try:
                 btns = target.get_by_role("button", name=pattern)
@@ -59,7 +59,7 @@ async def click_start_lab_button(page):
         await asyncio.sleep(1)
     return False
 
-# --- دالة الضغط على الكابتشا ---
+# --- دالة الضغط على الكابتشا (بدون تغيير) ---
 async def click_captcha_checkbox(page):
     send_tg("🤛 جاري البحث عن مربع الكابتشا...")
     try:
@@ -71,58 +71,40 @@ async def click_captcha_checkbox(page):
             if await checkbox.count() > 0:
                 await checkbox.click(force=True, delay=150)
                 send_tg("✅ تم الضغط على المربع بنجاح")
-                await asyncio.sleep(2)
-                await page.screenshot(path="after_click.png", full_page=True)
-                send_tg("📸 حالة الكابتشا بعد الضغط:", "after_click.png")
                 return True
         send_tg("❌ لم يتم العثور على المربع.")
         return False
     except: return False
-async def human_click(page, locator):
-    """دالة لمحاكاة حركة ونقرة الماوس البشرية"""
-    try:
-        # محاولة جلب إحداثيات الزر على الشاشة
-        await locator.scroll_into_view_if_needed()
-        box = await locator.bounding_box()
-        
-        if box:
-            # حساب منتصف الزر
-            x = box["x"] + box["width"] / 2
-            y = box["y"] + box["height"] / 2
-            
-            # تحريك الماوس تدريجياً (steps=10 تبطئ الحركة لتبدو طبيعية)
-            await page.mouse.move(x, y, steps=10)
-            await asyncio.sleep(0.2) # توقف بسيط فوق الزر
-            
-            # الضغط والإفلات مع تأخير بسيط
-            await page.mouse.down()
-            await asyncio.sleep(0.15) 
-            await page.mouse.up()
-        else:
-            # خطة بديلة إذا لم نجد الإحداثيات
-            await locator.click(delay=200)
-    except Exception as e:
-        send_tg(f"⚠️ فشل النقر البشري: {str(e)[:50]}")
-        await locator.click(delay=200)
 
-# --- دالة Buster ---
-async def handle_buster(page):
+# --- دالة التخطي الجديدة (الضغط المباشر على الشخص الأصفر) ---
+async def handle_buster_direct(page):
+    send_tg("🕵️ جاري البحث عن أيقونة الإضافة (الشخص الأصفر) للضغط عليها...")
     try:
+        # البحث عن نافذة التحدي (الصور)
         challenge_frame = page.frame_locator('iframe[src*="api2/bframe"]').first
-        audio_btn = challenge_frame.locator("#recaptcha-audio-button")
-        await audio_btn.wait_for(state="visible", timeout=10000)
-        await audio_btn.click()
-        await asyncio.sleep(2)
+        
+        # تحديد زر الإضافة الذي يتم حقنه (يحمل نفس الـ ID القديم عادة)
         buster_btn = challenge_frame.locator("#solver-button")
-        await buster_btn.click()
-        send_tg("🎯 تم تفعيل Buster لحل التحدي")
-        await asyncio.sleep(10)
-    except: pass
+        
+        # انتظار ظهور الزر لمدة 10 ثواني كحد أقصى
+        await buster_btn.wait_for(state="visible", timeout=10000)
+        
+        # الضغط على الشخص الأصفر مباشرة
+        await buster_btn.click(force=True, delay=100)
+        send_tg("🎯 تم الضغط على الشخص الأصفر! ننتظر 6 ثواني لتكتمل العملية...")
+        
+        # الانتظار 6 ثواني كما طلبت بالضبط
+        await asyncio.sleep(6)
+        
+    except Exception as e:
+        send_tg(f"⚠️ خطأ في العثور أو الضغط على الشخص الأصفر: {str(e)[:60]}")
 
+# --- التشغيل الرئيسي ---
 async def run():
+    send_tg("🚀 بدء المهمة...")
     ext_path = await get_ext()
+    
     async with async_playwright() as p:
-        # الحقن في launch
         browser = await p.chromium.launch(
             headless=True,
             proxy=WORKING_PROXY, 
@@ -134,35 +116,42 @@ async def run():
             ]
         )
         
-        # التأكيد على الحقن في context أيضاً لضمان عدم التسريب
         context = await browser.new_context(proxy=WORKING_PROXY)
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
 
         try:
-            send_tg("🌐 جاري محاولة فتح الصفحة بالبروكسي الجديد...")
-            # استخدمنا wait_until="commit" ليكون أسرع ولا يتوقف عند ملفات التتبع
+            send_tg("🌐 فتح صفحة اللاب...")
             await page.goto(LAB_URL, timeout=90000, wait_until="commit")
-            
-            # انتظر يدوياً ظهور شيء في الصفحة للتأكد
             await page.wait_for_load_state("domcontentloaded", timeout=30000)
             
-            await page.screenshot(path="loaded.png")
-            send_tg("📸 تم تحميل الصفحة بنجاح", "loaded.png")
-
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
-                await click_captcha_checkbox(page)
-                await handle_buster(page)
                 
-                await asyncio.sleep(5)
-                await page.screenshot(path="final.png")
-                send_tg("🏁 انتهت المهمة", "final.png")
+                # الضغط على المربع
+                await click_captcha_checkbox(page)
+                await asyncio.sleep(3)
+                
+                # الضغط على الشخص الأصفر مباشرة (التخطي)
+                await handle_buster_direct(page)
+                
+                # التقاط الصورة النهائية للنتيجة (لنرى نافذة Launch with 5 credits)
+                await page.screenshot(path="final_result.png", full_page=True)
+                send_tg("📸 النتيجة بعد 6 ثواني من التخطي:", "final_result.png")
+                
+                # محاولة البحث عن زر Launch with 5 credits للتأكيد
+                try:
+                    launch_btn = page.locator("text=Launch with 5 Credits").first
+                    if await launch_btn.count() > 0:
+                        send_tg("✅ تم رصد نافذة Launch with 5 Credits بنجاح!")
+                except:
+                    pass
+
             else:
                 send_tg("❌ لم أجد زر Start Lab")
 
         except Exception as e:
-            send_tg(f"❌ خطأ: {str(e)[:100]}")
+            send_tg(f"❌ خطأ عام: {str(e)[:100]}")
         finally:
             await browser.close()
 

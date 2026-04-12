@@ -4,10 +4,12 @@ import zipfile
 import requests
 from playwright.async_api import async_playwright
 
-# إعدادات التلجرام من المتغيرات البيئية
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-LAB_URL = os.environ.get("LAB_URL", "https://www.skills.google/focuses/19146?parent=catalog")
+# ========== إعدادات التيليجرام مباشرة ==========
+BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
+CHAT_ID = "8092953314"
+# ==============================================
+
+LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
 # قائمة الكوكيز (يجب تحديثها كل فترة)
 MY_COOKIES = [
@@ -23,17 +25,38 @@ MY_COOKIES = [
 ]
 
 def send_tg(msg, img=None):
-    if not BOT_TOKEN or not CHAT_ID:
+    print(f"\n📨 محاولة إرسال تيليجرام: {msg[:50]}...")
+    if not BOT_TOKEN:
+        print("❌ BOT_TOKEN فارغ!")
         return
+    if not CHAT_ID:
+        print("❌ CHAT_ID فارغ!")
+        return
+
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
     try:
         if img and os.path.exists(img):
+            print(f"📎 إرسال صورة: {img}")
             with open(img, "rb") as f:
-                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=15)
+                response = requests.post(
+                    url + "sendPhoto",
+                    data={"chat_id": CHAT_ID, "caption": msg},
+                    files={"photo": f},
+                    timeout=15
+                )
         else:
-            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
+            response = requests.post(
+                url + "sendMessage",
+                json={"chat_id": CHAT_ID, "text": msg},
+                timeout=15
+            )
+        
+        if response.status_code == 200:
+            print("✅ تم الإرسال إلى تيليجرام بنجاح.")
+        else:
+            print(f"❌ خطأ تيليجرام {response.status_code}: {response.text}")
     except Exception as e:
-        print("Telegram error:", e)
+        print(f"❌ استثناء أثناء الإرسال: {e}")
 
 async def get_ext():
     zip_p = "buster-main.zip"
@@ -51,7 +74,6 @@ async def run():
     ext_path = await get_ext()
     
     async with async_playwright() as p:
-        # تشغيل Chromium في وضع headless (ضروري لبيئة CI)
         browser = await p.chromium.launch(
             headless=True,
             args=[
@@ -75,7 +97,6 @@ async def run():
         await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
         await asyncio.sleep(3)
         
-        # التقاط صورة أولية
         await page.screenshot(path="status.png")
         send_tg("📸 تم فتح الصفحة بنجاح", "status.png")
         
@@ -88,34 +109,27 @@ async def run():
         except Exception:
             send_tg("⚠️ لم يتم العثور على زر البدء، ربما اللاب مفتوح مسبقًا.")
         
-        # بعد الضغط على زر Start Lab
         await asyncio.sleep(5)
         
         try:
-            # انتظر وجود iframe reCAPTCHA
             await page.wait_for_selector("iframe[src*='recaptcha']", timeout=15000)
             
-            # النقر على مربع "أنا لست روبوت"
             anchor_frame = page.frame_locator("iframe[title='reCAPTCHA']").first
             await anchor_frame.locator(".recaptcha-checkbox-border").click(timeout=10000)
             await asyncio.sleep(4)
             
-            # البحث عن إطار التحدي
             challenge_frame = page.frame_locator("iframe[title*='recaptcha challenge']").first
             if await challenge_frame.locator("#rc-imageselect").count() > 0:
                 send_tg("🤖 تحدي صور ظهر، جاري استخدام Buster...")
-                # انتظر زر Buster (قد يكون داخل shadow DOM أحيانًا)
                 await challenge_frame.locator("#solver-button").wait_for(state="visible", timeout=10000)
                 await challenge_frame.locator("#solver-button").click()
                 await asyncio.sleep(12)
                 send_tg("✅ Buster قام بمحاولة الحل.")
             else:
                 send_tg("ℹ️ لم يظهر تحدي، ربما تم التحقق تلقائيًا.")
-                
         except Exception as e:
             send_tg(f"⚠️ خطأ في معالجة الكابتشا: {str(e)[:80]}")
         
-        # صورة نهائية
         await page.screenshot(path="final.png")
         send_tg(f"✅ المهمة انتهت.\nالرابط الحالي: {page.url}", "final.png")
         

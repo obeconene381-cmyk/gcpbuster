@@ -78,6 +78,32 @@ async def click_captcha_checkbox(page):
         send_tg("❌ لم يتم العثور على المربع.")
         return False
     except: return False
+async def human_click(page, locator):
+    """دالة لمحاكاة حركة ونقرة الماوس البشرية"""
+    try:
+        # محاولة جلب إحداثيات الزر على الشاشة
+        await locator.scroll_into_view_if_needed()
+        box = await locator.bounding_box()
+        
+        if box:
+            # حساب منتصف الزر
+            x = box["x"] + box["width"] / 2
+            y = box["y"] + box["height"] / 2
+            
+            # تحريك الماوس تدريجياً (steps=10 تبطئ الحركة لتبدو طبيعية)
+            await page.mouse.move(x, y, steps=10)
+            await asyncio.sleep(0.2) # توقف بسيط فوق الزر
+            
+            # الضغط والإفلات مع تأخير بسيط
+            await page.mouse.down()
+            await asyncio.sleep(0.15) 
+            await page.mouse.up()
+        else:
+            # خطة بديلة إذا لم نجد الإحداثيات
+            await locator.click(delay=200)
+    except Exception as e:
+        send_tg(f"⚠️ فشل النقر البشري: {str(e)[:50]}")
+        await locator.click(delay=200)
 
 # --- دالة Buster ---
 async def handle_buster(page):

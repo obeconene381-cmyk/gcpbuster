@@ -5,6 +5,7 @@ import requests
 import re
 from playwright.async_api import async_playwright
 
+# --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
@@ -32,16 +33,10 @@ def send_tg(msg, img=None):
             requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
     except Exception as e:
         print(f"TG Error: {e}")
-    
-    # البحث عن مجلد src داخل المجلد المفكوك
-    for root, dirs, files in os.walk(extract_to):
-        if "manifest.json" in files:
-            return os.path.abspath(root)
-    
-    return None
+
 async def get_buster_path():
-    """البحث عن Buster في المسارات المحتملة"""
-    possible_names = ["buster-master", "buster-main", "buster"]
+    """البحث عن مجلد Buster"""
+    possible_names = ["buster-master", "buster-main"]
     
     for name in possible_names:
         if os.path.exists(name):
@@ -49,6 +44,7 @@ async def get_buster_path():
                 if "manifest.json" in files:
                     return os.path.abspath(root)
     return None
+
 async def human_click(page, locator):
     """محاكاة النقر البشري"""
     try:
@@ -125,9 +121,7 @@ async def click_captcha_checkbox(page):
 async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     try:
-        # الانتظار أطول قليلاً لظهور التحدي
         await asyncio.sleep(5)
-        
         challenge_frame = page.frame_locator('iframe[title*="challenge"], iframe[src*="api2/bframe"]').first
         buster_btn = challenge_frame.locator("#solver-button")
         
@@ -143,22 +137,16 @@ async def handle_buster(page):
 async def run():
     send_tg("🚀 بدء المهمة...")
     
-    # تحميل الإضافة أولاً
-    ext_path = await download_and_extract_buster()
+    ext_path = await get_buster_path()
     if not ext_path:
-        send_tg("❌ فشل تحميل الإضافة")
+        send_tg("❌ لم يتم العثور على Buster")
         return
     
-    send_tg(f"📂 مسار الإضافة: {ext_path}")
-    
-    # إنشاء بروفايل مستمر (مهم جداً للإضافات)
-    user_data_dir = "/tmp/chrome_profile_buster"
-    os.makedirs(user_data_dir, exist_ok=True)
+    send_tg(f"📂 استخدام الإضافة من: {ext_path}")
     
     async with async_playwright() as p:
-        # استخدام launch_persistent_context بدلاً من launch فقط
         context = await p.chromium.launch_persistent_context(
-            user_data_dir,
+            "/tmp/chrome_profile",
             headless=True,
             proxy=WORKING_PROXY,
             args=[
@@ -174,26 +162,15 @@ async def run():
         page = context.pages[0] if context.pages else await context.new_page()
         
         try:
-            # إضافة الكوكيز
             await context.add_cookies(MY_COOKIES)
             
-            # التقاط صورة للإضافة (chrome://extensions/)
-            try:
-                await page.goto("chrome://extensions/", timeout=10000)
-                await page.screenshot(path="extensions_page.png")
-                send_tg("📸 صفحة الإضافات (للتأكد):", "extensions_page.png")
-            except:
-                pass
-            
-            # الذهاب للاب
             send_tg("🌐 فتح اللاب...")
             await page.goto(LAB_URL, timeout=90000, wait_until="domcontentloaded")
             await page.wait_for_load_state("networkidle", timeout=30000)
             
-            await page.screenshot(path="lab_loaded.png")
+            await page.screenshot(path="lab_loaded.png", full_page=True)
             send_tg("📸 تم تحميل اللاب", "lab_loaded.png")
-            
-            # باقي الخطوات...
+
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
                 if await click_captcha_checkbox(page):
@@ -208,7 +185,7 @@ async def run():
                     send_tg("❌ فشل الكابتشا:", "captcha_fail.png")
             else:
                 send_tg("❌ لم يتم العثور على Start Lab")
-                
+
         except Exception as e:
             send_tg(f"❌ خطأ: {str(e)[:200]}")
             try:

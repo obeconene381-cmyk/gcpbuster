@@ -20,7 +20,7 @@ jobs:
       - name: Install Requirements
         run: |
           pip install playwright requests
-          playwright install firefox --with-deps
+          playwright install chromium --with-deps
 
       - name: Download Buster Extension
         run: |

@@ -2,12 +2,12 @@ name: Google Skills Automation
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # تشغيل تلقائي كل 6 ساعات
-  workflow_dispatch:  # تشغيل يدوي
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   run-automation:
-    runs-on: ubuntu-22.04  # استخدام 22.04 لتجنب مشاكل المستودعات
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
 
     steps:
@@ -19,17 +19,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies
+      - name: Install Dependencies
         run: |
           sudo apt-get update --fix-missing || true
           sudo apt-get install -y --no-install-recommends \
             libnss3 libatk-bridge2.0-0 libxss1 libgtk-3-0 \
             libgbm1 libasound2 libxshmfence1 libx11-xcb1 \
             libxcomposite1 libxcursor1 libxdamage1 libxi6 \
-            libxtst6 libappindicator3-1 libxrandr2 libxss1 \
-            libxtst6 xdg-utils fonts-liberation wget unzip
+            libxtst6 libappindicator3-1 libxrandr2 fonts-liberation wget unzip
           sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
 
       - name: Install Python Packages
         run: |
@@ -40,24 +38,21 @@ jobs:
         run: |
           python -m playwright install chromium
 
-      - name: Download Buster Extension
+      - name: Download & Extract Buster
         run: |
           wget -q -O buster.zip https://github.com/dessant/buster/archive/refs/heads/master.zip
-          unzip -q buster.zip
-          ls -la
+          unzip -q buster.zip  # ✅ فك في المجلد الحالي (ينتج buster-master/)
+          ls -la buster-master/  # التحقق
 
       - name: Run Automation Script
         run: python main.py
         env:
           PYTHONUNBUFFERED: "1"
 
-      - name: Upload Screenshots & Artifacts
+      - name: Upload Screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: automation-results
-          path: |
-            *.png
-            *.jpg
-            *.zip
+          name: results
+          path: "*.png"
           retention-days: 7

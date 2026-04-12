@@ -5,7 +5,7 @@ on:
 jobs:
   run-automation:
     runs-on: ubuntu-latest
-    timeout-minutes: 20              # زيادة المهلة الإجمالية
+    timeout-minutes: 20
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -18,11 +18,10 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
           pip install playwright requests
           python -m playwright install chromium --with-deps
 
       - name: Run Playwright with Xvfb
         run: |
-          # تشغيل السكريبت باستخدام xvfb-run (يُشغل خادم X وهمي تلقائياً)
           xvfb-run -a --server-args="-screen 0 1280x720x24" python main.py

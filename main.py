@@ -2,7 +2,6 @@ import asyncio
 import os
 import zipfile
 import requests
-import re
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 # ========== إعدادات التيليجرام ==========
@@ -12,9 +11,7 @@ CHAT_ID = "8092953314"
 
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# دمج كوكيز Google العامة مع كوكيز skills.google
 MY_COOKIES = [
-    # كوكيز skills.google
     {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
     {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775996404$o97$g1$t1775996563$j32$l0$h0", "path": "/"},
     {"domain": "www.skills.google", "name": "_cvl-4_1_14_session", "value": "lQa%2FMnKdErx31nYRawt27XpphO7RO1Mod3%2FCk8T6PqZfkPZohBUhjBqhs2Mw1GIO229gr0KDHGkAp%2F9o7Blffpj%2BNy7YVlSwMKrQX3%2B0RxdyBzB0LU%2BFdcq5wLCPFWUPMhJNMngGjgVjse8JNXc1BO1j2FUpFQqvzAVGdPUShDJMshUZOva39naRS%2BVT%2BpBdaPE0I%2FgjsG6fC6KFeGqADXbUOQ36JiZQkoXYIjuKCxrOKwyaLKj7fFRebXiBduQKQIH3JK8bvcn0LkvK8BuvZ262zjAku4%2FkzRdFKfsfQMXrZStwGytxy1dqm%2FoQ6Lut8s9fnFVTGGcYIoJoxwba0Yx653S2FCemxd3GSCCqfGuNfuzRfNSCjsYvAeUmPdkQzepE80F3hbK15UUyM%2B2Puh3e4e%2FoovbnYf0xLZFGrxSpTcgJ5zb1FElGZ9LNFypWppJjbPlIySkS6X00pjko3fzmpi2TmUHvdBfPbn7ZmJbQ%2Fa8mQzvispzCN8GaAavsOZ%2FsD6xOt0%2FukYWX4oyXfRQg8AP8iZvYkj1iOvsbagPMKjp7utfL9DzDJ5n7LorhayjfSh9XLi1us38cm%2Fu8fzdbvLJn0DJ7koAN2V8V2KKLiGrU2H3e2z4pAFvTAmFENKac3LdIOOs2oNNj2Z8yF0iEnprV%2FzPeOb7eCcvFU66A6qb3f4SgUOTFVchEXizCrTx0%2FvdEQhoQG%2Boc3WXvnYtDbpPIuyt0BJSUda0e63hfWvQnww7DjHcdLtchLMoGYyOW0UktBRGkG3s%3D--TF35bd8CfnDqO%2BYr--Bp220SPOMrUj1y6NmvAiVw%3D%3D", "path": "/", "secure": True, "httpOnly": True},
@@ -43,83 +40,142 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-async def wait_and_click_start_lab(page):
-    """انتظار والنقر على زر Start Lab بالطريقة الصحيحة"""
+async def robust_click_start_lab(page):
+    """طريقة قوية للنقر على زر Start Lab"""
     send_tg("🔍 جاري البحث عن زر Start Lab...")
 
-    # محددات محددة للزر الأخضر في Google Skills
-    selectors = [
-        'button:has-text("Start Lab")',
-        'button:has-text("START LAB")',
-        'button.ql-button--primary',
-        'button.start-lab-button',
-        '[data-testid="start-lab-button"]',
-        'button:has-text("Start")',
-        'button.ql-button',
-        'button.mdc-button--raised',
-        '//button[contains(., "Start Lab")]',
-        '//button[contains(., "START LAB")]',
-    ]
+    # انتظار إضافي للتأكد من تحميل الصفحة بالكامل
+    await asyncio.sleep(5)
 
-    clicked = False
+    # محاولة 1: استخدام JavaScript للبحث والنقر
+    try:
+        result = await page.evaluate("""
+            () => {
+                // البحث عن الزر بجميع الطرق الممكنة
+                const buttons = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], [role="button"]'));
 
-    for selector in selectors:
-        try:
-            if selector.startswith('//'):
-                locator = page.locator(f"xpath={selector}")
-            else:
-                locator = page.locator(selector)
+                // البحث بالنص
+                let btn = buttons.find(b => {
+                    const text = (b.innerText || b.textContent || b.value || '').toLowerCase();
+                    return text.includes('start lab') || text.includes('start') || text.includes('lab');
+                });
 
-            await locator.first.wait_for(state="visible", timeout=5000)
+                // البحث بالكلاسات
+                if (!btn) {
+                    btn = document.querySelector('.ql-button--primary') || 
+                          document.querySelector('.start-lab-button') ||
+                          document.querySelector('[data-testid="start-lab-button"]') ||
+                          document.querySelector('button.ql-button') ||
+                          document.querySelector('button.mdc-button--raised');
+                }
 
-            count = await locator.count()
-            for i in range(count):
-                btn = locator.nth(i)
-                if await btn.is_visible() and await btn.is_enabled():
-                    text = await btn.text_content() or ""
-                    if "start" in text.lower() or "lab" in text.lower() or "بدء" in text:
-                        await btn.scroll_into_view_if_needed()
-                        await asyncio.sleep(1)
+                // البحث باللون (الأزرار الخضراء عادةً)
+                if (!btn) {
+                    const greenBtns = buttons.filter(b => {
+                        const style = window.getComputedStyle(b);
+                        const bg = style.backgroundColor;
+                        return bg.includes('rgb(0, 128') || bg.includes('rgb(0, 200') || bg.includes('green') || bg.includes('rgb(76, 175');
+                    });
+                    if (greenBtns.length > 0) btn = greenBtns[0];
+                }
 
-                        try:
-                            await btn.click(timeout=5000)
-                            clicked = True
-                            send_tg(f"✅ تم النقر على الزر")
-                            return True
-                        except:
-                            await btn.evaluate("element => element.click()")
-                            clicked = True
-                            send_tg(f"✅ تم النقر على الزر باستخدام JavaScript")
-                            return True
+                if (btn) {
+                    // التمرير إلى الزر
+                    btn.scrollIntoView({behavior: 'smooth', block: 'center'});
 
-        except PlaywrightTimeout:
-            continue
-        except Exception as e:
-            print(f"محاولة فاشلة مع {selector}: {e}")
-            continue
+                    // محاكاة النقر الكامل (mousedown, click, mouseup)
+                    const clickEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    btn.dispatchEvent(clickEvent);
 
-    if not clicked:
-        try:
-            buttons = await page.query_selector_all('button')
-            for btn in buttons:
-                text = await btn.text_content()
-                if text and ("start lab" in text.lower() or "start" in text.lower()):
-                    await btn.scroll_into_view_if_needed()
-                    await btn.click()
-                    send_tg("✅ تم النقر على الزر بالبحث في جميع الأزرار")
-                    return True
-        except Exception as e:
-            send_tg(f"⚠️ فشل في النقر على الزر: {str(e)[:100]}")
+                    // كمحاولة إضافية، استدعاء click()
+                    btn.click();
 
+                    return {success: true, text: btn.innerText || btn.textContent};
+                }
+                return {success: false, reason: 'Button not found'};
+            }
+        """)
+
+        if result and result.get('success'):
+            send_tg(f"✅ تم النقر على الزر: {result.get('text', 'Start Lab')}")
+            return True
+    except Exception as e:
+        send_tg(f"⚠️ فشلت المحاولة 1: {str(e)[:100]}")
+
+    # محاولة 2: استخدام Playwright مع انتظار طويل
+    try:
+        # انتظار الزر حتى يكون مرئياً
+        await page.wait_for_selector('button:has-text("Start Lab")', state="visible", timeout=10000)
+
+        # النقر مع force=True لتجاوز أي overlay
+        await page.click('button:has-text("Start Lab")', force=True, timeout=10000)
+        send_tg("✅ تم النقر باستخدام Playwright force click")
+        return True
+    except:
+        pass
+
+    # محاولة 3: النقر بالإحداثيات
+    try:
+        # الحصول على موقع الزر
+        box = await page.locator('button:has-text("Start Lab")').bounding_box()
+        if box:
+            x = box['x'] + box['width'] / 2
+            y = box['y'] + box['height'] / 2
+            await page.mouse.click(x, y)
+            send_tg("✅ تم النقر بالإحداثيات")
+            return True
+    except:
+        pass
+
+    # محاولة 4: البحث في Shadow DOM
+    try:
+        result = await page.evaluate("""
+            () => {
+                function findButtonInShadowDOM(root) {
+                    const buttons = Array.from(root.querySelectorAll('button'));
+                    const found = buttons.find(b => b.textContent.toLowerCase().includes('start'));
+                    if (found) return found;
+
+                    const allElements = root.querySelectorAll('*');
+                    for (const el of allElements) {
+                        if (el.shadowRoot) {
+                            const found = findButtonInShadowDOM(el.shadowRoot);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                }
+
+                const btn = findButtonInShadowDOM(document);
+                if (btn) {
+                    btn.click();
+                    return {success: true};
+                }
+                return {success: false};
+            }
+        """)
+        if result and result.get('success'):
+            send_tg("✅ تم النقر داخل Shadow DOM")
+            return True
+    except:
+        pass
+
+    send_tg("❌ فشلت جميع محاولات النقر")
     return False
 
 async def handle_recaptcha(page):
-    """معالجة reCAPTCHA بشكل صحيح"""
+    """معالجة reCAPTCHA"""
     try:
-        recaptcha_frame = None
+        # انتظار قصير لظهور الكابتشا
+        await asyncio.sleep(2)
 
+        recaptcha_frame = None
         for frame in page.frames:
-            if "recaptcha" in frame.url:
+            if "recaptcha/api2/anchor" in frame.url:
                 recaptcha_frame = frame
                 break
 
@@ -128,73 +184,56 @@ async def handle_recaptcha(page):
 
         send_tg("🤖 تم اكتشاف reCAPTCHA")
 
+        # النقر على checkbox باستخدام JavaScript
         try:
-            checkbox = recaptcha_frame.locator(".recaptcha-checkbox-border")
-            await checkbox.click(timeout=10000)
+            await recaptcha_frame.evaluate("""
+                () => {
+                    const checkbox = document.querySelector('.recaptcha-checkbox-border');
+                    if (checkbox) {
+                        checkbox.click();
+                        return true;
+                    }
+                    return false;
+                }
+            """)
             send_tg("✅ تم النقر على checkbox")
             await asyncio.sleep(5)
         except:
             pass
 
-        try:
-            challenge_frame = None
-            for frame in page.frames:
-                if "api2/bframe" in frame.url or "recaptcha/api2/bframe" in frame.url:
-                    challenge_frame = frame
-                    break
+        # التحقق من التحدي الصوتي
+        challenge_frame = None
+        for frame in page.frames:
+            if "api2/bframe" in frame.url:
+                challenge_frame = frame
+                break
 
-            if challenge_frame:
-                send_tg("🔊 التحدي الصوتي ظهر، جاري استخدام Buster...")
+        if challenge_frame:
+            send_tg("🔊 التحدي الصوتي ظهر")
+            try:
+                # النقر على زر الصوت أولاً
+                await challenge_frame.evaluate("""
+                    () => {
+                        const audioBtn = document.querySelector('#recaptcha-audio-button');
+                        if (audioBtn) audioBtn.click();
+                    }
+                """)
+                await asyncio.sleep(2)
 
-                try:
-                    audio_btn = challenge_frame.locator("#recaptcha-audio-button")
-                    await audio_btn.click(timeout=5000)
-                    await asyncio.sleep(2)
-                except:
-                    pass
-
-                try:
-                    buster_btn = challenge_frame.locator("#solver-button")
-                    await buster_btn.click(timeout=10000)
-                    send_tg("🎯 تم تفعيل Buster")
-                    await asyncio.sleep(15)
-                except:
-                    send_tg("⚠️ لم يتم العثور على زر Buster")
-
-        except Exception as e:
-            print(f"خطأ في معالجة التحدي: {e}")
+                # استخدام Buster
+                await challenge_frame.evaluate("""
+                    () => {
+                        const busterBtn = document.querySelector('#solver-button');
+                        if (busterBtn) busterBtn.click();
+                    }
+                """)
+                send_tg("🎯 تم تفعيل Buster")
+                await asyncio.sleep(15)
+            except Exception as e:
+                send_tg(f"⚠️ Buster: {str(e)[:100]}")
 
         return True
-
-    except Exception as e:
-        print(f"خطأ في معالجة الكابتشا: {e}")
-        return False
-
-async def check_lab_status(page):
-    """التحقق من حالة اللاب بعد الضغط"""
-    try:
-        await asyncio.sleep(3)
-        content = await page.content()
-
-        if "Task 1" in content or "task 1" in content.lower():
-            send_tg("📋 اللاب يعمل - تم اكتشاف المهام")
-            return True
-
-        if "console.cloud.google.com" in page.url:
-            send_tg("☁️ تم التحويل إلى Google Cloud Console")
-            return True
-
-        try:
-            await page.wait_for_selector("text=/Task \d|Open Google Console|Credentials/i", timeout=10000)
-            send_tg("✅ تم تأكيد بدء اللاب")
-            return True
-        except:
-            pass
-
-        return False
-
-    except Exception as e:
-        print(f"خطأ في التحقق: {e}")
+    except:
         return False
 
 async def run():
@@ -212,8 +251,7 @@ async def run():
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--window-size=1366,768",
-                "--start-maximized"
+                "--window-size=1366,768"
             ]
         )
 
@@ -228,45 +266,36 @@ async def run():
         try:
             send_tg("🌐 فتح صفحة اللاب...")
 
-            response = await page.goto(LAB_URL, wait_until="domcontentloaded", timeout=60000)
-            await page.wait_for_load_state("networkidle")
-
-            await asyncio.sleep(3)
+            await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
+            await asyncio.sleep(5)  # انتظار إضافي للتحميل
 
             await page.screenshot(path="lab_page.png")
             send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
 
-            clicked = await wait_and_click_start_lab(page)
+            # محاولة النقر على الزر
+            clicked = await robust_click_start_lab(page)
 
             if clicked:
-                await asyncio.sleep(3)
+                send_tg("⏳ انتظار بعد النقر...")
+                await asyncio.sleep(8)
+
+                # معالجة الكابتشا إن وجدت
                 await handle_recaptcha(page)
-                success = await check_lab_status(page)
 
-                await asyncio.sleep(5)
-                await page.screenshot(path="after_start.png")
-
-                if success:
-                    send_tg("✅ اللاب يعمل بنجاح", "after_start.png")
-                else:
-                    send_tg("⚠️ تم الضغط على الزر لكن الحالة غير مؤكدة", "after_start.png")
+                await asyncio.sleep(10)
+                await page.screenshot(path="after_click.png", full_page=True)
+                send_tg("📸 بعد الضغط", "after_click.png")
             else:
-                send_tg("❌ فشل في الضغط على زر Start Lab")
-                if await check_lab_status(page):
-                    send_tg("✅ اللاب يعمل بالفعل!")
+                send_tg("❌ فشل النقر على الزر")
 
+            # الصورة النهائية
             await page.screenshot(path="final.png", full_page=True)
-            final_url = page.url
-            send_tg(f"🏁 المهمة انتهت\n🔗 الرابط: {final_url}", "final.png")
+            send_tg(f"🏁 المهمة انتهت\n🔗 {page.url}", "final.png")
 
         except Exception as e:
-            error_msg = str(e)
-            send_tg(f"❌ خطأ: {error_msg[:200]}")
-            try:
-                await page.screenshot(path="error.png", full_page=True)
-                send_tg("📸 لقطة الخطأ", "error.png")
-            except:
-                pass
+            send_tg(f"❌ خطأ: {str(e)[:200]}")
+            await page.screenshot(path="error.png", full_page=True)
+            send_tg("📸 لقطة الخطأ", "error.png")
         finally:
             await browser.close()
 

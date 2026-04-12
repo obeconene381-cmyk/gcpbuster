@@ -3,6 +3,7 @@ import os
 import zipfile
 import requests
 import re
+import tempfile
 from playwright.async_api import async_playwright
 
 # ========== إعدادات التيليجرام ==========
@@ -13,7 +14,7 @@ CHAT_ID = "8092953314"
 BASE_URL = "https://www.skills.google/"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# الكوكيز الجديدة التي استخرجتها (جلسة نشطة 100%)
+# الكوكيز الجديدة (تاع صفحة Dashboard)
 MY_COOKIES = [
     {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
     {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775996404$o97$g1$t1775996563$j32$l0$h0", "path": "/"},
@@ -28,9 +29,9 @@ def send_tg(msg, img=None):
     try:
         if img and os.path.exists(img):
             with open(img, "rb") as f:
-                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=15)
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=20)
         else:
-            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=15)
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=20)
     except: pass
 
 async def get_ext():
@@ -42,68 +43,82 @@ async def get_ext():
             if "manifest.json" in f: return os.path.abspath(r)
     return os.path.abspath(dest)
 
+# دالة البحث الشامل عن الأزرار (الرادار)
+async def click_button_robust(page, text, timeout_loop=40):
+    pattern = re.compile(rf"{re.escape(text)}", re.I)
+    for _ in range(timeout_loop):
+        for target in [page] + list(page.frames):
+            try:
+                # تجربة البحث بـ role أو بـ text مباشرة
+                locs = target.locator(f"button:has-text('{text}'), a:has-text('{text}'), [role='button']:has-text('{text}')")
+                count = await locs.count()
+                for i in range(count):
+                    btn = locs.nth(i)
+                    if await btn.is_visible():
+                        await btn.scroll_into_view_if_needed()
+                        await btn.click(force=True)
+                        return True
+            except: pass
+        await asyncio.sleep(1)
+    return False
+
 async def run():
-    send_tg("🚀 بدأت المحاولة باستخدام الكوكيز الجديدة...")
+    send_tg("🚀 انطلاق الدبابة! جاري التحضير...")
     ext_path = await get_ext()
+    temp_dir = tempfile.mkdtemp()
     
     async with async_playwright() as p:
-        # تشغيل المتصفح (Headless=True لضمان السرعة في جيتهاب)
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
         )
         context = await browser.new_context(viewport={'width': 1280, 'height': 720})
-        
-        # 1. حقن الكوكيز قبل أي عملية دخول
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
-        page.set_default_timeout(60000)
 
         try:
-            # 2. الدخول للصفحة الرئيسية أولاً لتثبيت الجلسة
-            send_tg("🌐 الدخول للصفحة الرئيسية لتثبيت الجلسة...")
+            # 1. الدخول للرئيسية
+            send_tg("🌐 الدخول للصفحة الرئيسية...")
             await page.goto(BASE_URL, wait_until="networkidle")
             await asyncio.sleep(4)
             
-            # 3. الانتقال لرابط اللاب مباشرة
-            send_tg("🔗 الانتقال لرابط اللاب المستهدف...")
+            # 2. الانتقال للاب
+            send_tg("🔗 الانتقال لرابط اللاب...")
             await page.goto(LAB_URL, wait_until="networkidle")
             await asyncio.sleep(5)
-            
-            # تصوير الصفحة للتأكد من حالة الدخول
-            await page.screenshot(path="check_lab.png")
-            send_tg("📸 تحقق من حالة اللاب (يجب أن نكون مسجلين الدخول)", "check_lab.png")
+            await page.screenshot(path="at_lab.png")
+            send_tg("📸 رانا في صفحة اللاب. جاري البحث عن زر البدء بـ 'الرادار'...", "at_lab.png")
 
-            # 4. الضغط على Start Lab (البحث عن الزر كما في السكريبت الأصلي)
-            send_tg("🔘 محاولة بدء اللاب...")
-            start_btn = page.locator("button:has-text('Start Lab'), button:has-text('بدء')").first
-            if await start_btn.is_visible():
-                await start_btn.click()
+            # 3. البحث الشامل عن Start Lab
+            clicked = await click_button_robust(page, "Start Lab")
+            if not clicked:
+                clicked = await click_button_robust(page, "بدء")
+            
+            if clicked:
+                send_tg("✅ تم العثور على زر البدء والضغط عليه بنجاح!")
                 await asyncio.sleep(5)
                 
-                # 5. معالجة الكبتشا إذا ظهرت
-                try:
-                    for frame in page.frames:
-                        if "api2/anchor" in frame.url:
-                            await frame.click(".recaptcha-checkbox-border")
-                            await asyncio.sleep(3)
-                        if "api2/bframe" in frame.url:
-                            send_tg("🤖 حل الكبتشا بواسطة Buster...")
-                            await frame.locator("#solver-button").click()
-                            await asyncio.sleep(15)
-                except:
-                    pass
+                # 4. معالجة الكبتشا
+                for f in page.frames:
+                    if "api2/anchor" in f.url:
+                        await f.click(".recaptcha-checkbox-border")
+                        await asyncio.sleep(4)
+                    if "api2/bframe" in f.url:
+                        send_tg("🤖 كبتشا كاشفة! جاري تفعيل Buster...")
+                        await f.locator("#solver-button").click()
+                        await asyncio.sleep(15)
             else:
-                send_tg("⚠️ زر البدء غير موجود، قد تحتاج لتحديث الكوكيز.")
+                send_tg("❌ الرادار فشل في إيجاد الزر. سأقوم بتصوير الصفحة كاملة للفحص.")
+                await page.screenshot(path="failed_find.png", full_page=True)
+                send_tg("📸 الصفحة التي فشلت فيها:", "failed_find.png")
 
-            # انتظار نهائي وتصوير النتيجة
-            await asyncio.sleep(10)
-            await page.screenshot(path="final_result.png")
-            send_tg(f"✅ انتهت العملية. الرابط الحالي:\n{page.url}", "final_result.png")
+            # انتظار نهائي
+            await asyncio.sleep(15)
+            await page.screenshot(path="final.png")
+            send_tg(f"🏁 انتهت المهمة. الرابط:\n{page.url}", "final.png")
 
         except Exception as e:
-            await page.screenshot(path="error.png")
-            send_tg(f"❌ حدث خطأ: {str(e)[:150]}", "error.png")
+            send_tg(f"❌ خطأ غير متوقع: {str(e)[:200]}")
         finally:
             await browser.close()
 

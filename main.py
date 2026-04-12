@@ -38,11 +38,7 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# ============================================================
-# نفس دالة النقر على Start Lab (لا تغيير)
-# ============================================================
 async def click_start_lab_button(page, timeout_loop=120, post_click_wait=3):
-    """نفس المنطق الناجح - لا تغيير"""
     pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
 
     async def _post_click_stabilize():
@@ -75,25 +71,24 @@ async def click_start_lab_button(page, timeout_loop=120, post_click_wait=3):
 async def click_captcha_checkbox(page):
     send_tg("🤛 جاري البحث عن المربع في كل الـ iframes...")
     try:
-        # إعطاء فرصة قصيرة للصفحة لتحميل الـ iframes
         await asyncio.sleep(3)
-        
-        # جلب جميع الـ iframes الموجودة في الصفحة
         iframes = await page.locator('iframe').all()
         
         for iframe in iframes:
-            # الدخول إلى محتوى كل iframe
             frame_content = iframe.content_frame
-            
-            # البحث عن مربع الكابتشا داخل هذا الفريم
             checkbox = frame_content.locator('.recaptcha-checkbox-border').first
             
-            # إذا لقينا المربع موجود
             if await checkbox.count() > 0:
                 await checkbox.scroll_into_view_if_needed()
-                # نضغط عليه بالقوة
                 await checkbox.click(force=True, delay=100)
                 send_tg("✅ تم الضغط على المربع بنجاح")
+                
+                # التقاط صورة فورية بعد الضغط لرؤية حالة الكابتشا
+                await asyncio.sleep(2)
+                img_path = "after_click_instant.png"
+                await page.screenshot(path=img_path, full_page=True)
+                send_tg("📸 صورة فورية لحالة الكابتشا بعد الضغط:", img_path)
+                
                 return True
                 
         send_tg("❌ لم يتم العثور على المربع في أي iframe.")
@@ -102,24 +97,17 @@ async def click_captcha_checkbox(page):
         send_tg(f"❌ خطأ أثناء البحث: {str(e)[:60]}")
         return False
 
-
 async def handle_buster(page):
-    """معالجة Buster وتجنب خطأ TypeError الذي ظهر لك"""
     send_tg("🔊 جاري البحث عن نافذة التحدي (Buster)...")
     try:
-        # الوصول لـ iframe التحدي
         challenge_frame = page.frame_locator('iframe[src*="api2/bframe"]').first
-        
-        # تحديد زر الصوت
         audio_btn = challenge_frame.locator("#recaptcha-audio-button")
         
-        # الانتظار حتى يظهر زر الصوت (في حال ظهر التحدي أصلاً)
         await audio_btn.wait_for(state="visible", timeout=10000)
         await audio_btn.click(delay=150)
         send_tg("🔊 تم النقر على زر الصوت")
         await asyncio.sleep(2)
         
-        # تحديد زر Buster
         buster_btn = challenge_frame.locator("#solver-button")
         await buster_btn.wait_for(state="visible", timeout=5000)
         
@@ -127,9 +115,9 @@ async def handle_buster(page):
             send_tg(f"🎯 Buster محاولة {attempt + 1}/3...")
             try:
                 await buster_btn.click(delay=100)
-                await asyncio.sleep(15) # انتظار Buster ليقوم بجلب وحل الصوت
+                await asyncio.sleep(15) 
                 send_tg(f"✅ Buster محاولة {attempt + 1} اكتملت")
-                break # الخروج من الحلقة عند النجاح
+                break 
             except Exception as e:
                 send_tg(f"⚠️ Buster محاولة {attempt + 1} فشلت: {str(e)[:60]}")
                 await asyncio.sleep(2)
@@ -138,14 +126,19 @@ async def handle_buster(page):
         send_tg("⚠️ لم يظهر تحدي الصوت أو تم التجاوز التلقائي.")
         return False
 
-
 async def run():
-    send_tg("🚀 بدء المهمة (كود قوي للكابتشا)...")
+    send_tg("🚀 بدء المهمة (مع البروكسي)...")
     ext_path = await get_ext()
 
     async with async_playwright() as p:
+        # إضافة البروكسي هنا
         browser = await p.chromium.launch(
             headless=True,
+            proxy={
+                "server": "http://node-de-91.astroproxy.com:10053",
+                "username": "ShinoharitoshiJB4",
+                "password": "bfdb58IN2"
+            },
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
@@ -175,17 +168,13 @@ async def run():
             await page.screenshot(path="lab_page.png", full_page=True)
             send_tg("📸 صفحة اللاب مفتوحة", "lab_page.png")
 
-            # النقر على Start Lab
             clicked = await click_start_lab_button(page, timeout_loop=120, post_click_wait=3)
 
             if clicked:
                 send_tg("⏳ انتظار 5 ثوانٍ...")
                 await asyncio.sleep(5)
 
-                # معالجة الكابتشا (10 طرق)
                 await click_captcha_checkbox(page)
-
-                # معالجة Buster
                 await handle_buster(page)
 
                 await asyncio.sleep(10)

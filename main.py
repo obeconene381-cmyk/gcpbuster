@@ -34,27 +34,16 @@ def send_tg(msg, img=None):
         print(f"TG Error: {e}")
 
 async def download_and_extract_buster():
-    """تحميل Buster من GitHub وفك الضغط"""
-    zip_path = "buster.zip"
-    extract_to = "buster_ext"
+    """البحث عن Buster (تم فك الضغط مسبقاً في Workflow)"""
+    possible_paths = ["buster-master", "buster-main", "buster_ext/buster-master"]
     
-    if not os.path.exists(extract_to):
-        send_tg("⏳ تحميل Buster من GitHub...")
-        try:
-            # تحميل من GitHub
-            url = "https://github.com/dessant/buster/archive/refs/heads/master.zip"
-            r = requests.get(url, timeout=60)
-            with open(zip_path, "wb") as f:
-                f.write(r.content)
-            
-            # فك الضغط
-            with zipfile.ZipFile(zip_path, 'r') as z:
-                z.extractall(extract_to)
-            
-            send_tg("✅ تم تحميل وفك Buster")
-        except Exception as e:
-            send_tg(f"❌ خطأ في تحميل Buster: {e}")
-            return None
+    for base_path in possible_paths:
+        if os.path.exists(base_path):
+            for root, dirs, files in os.walk(base_path):
+                if "manifest.json" in files:
+                    return os.path.abspath(root)
+    
+    return None
     
     # البحث عن مجلد src داخل المجلد المفكوك
     for root, dirs, files in os.walk(extract_to):

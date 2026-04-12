@@ -11,8 +11,10 @@ CHAT_ID = "8092953314"
 # =====================================
 
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
+TARGET_EMAIL = "omarcora02@gmail.com"  # الحساب المستهدف
 
 MY_COOKIES = [
+    # قائمة الكوكيز الحالية (يُرجى تحديثها لاحقًا)
     {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-3PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
@@ -53,21 +55,17 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# ========== دالة مساعدة للنقر على زر بالنص في أي إطار ==========
-async def click_button_by_text_anywhere(page, text, exact=True, timeout_loop=30, post_click_wait=3):
+# دالة قوية للنقر على زر بالنص
+async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30, post_click_wait=3):
     pattern = re.compile(rf"^\s*{re.escape(text)}\s*$", re.I) if exact else re.compile(re.escape(text), re.I)
     async def _post_click_stabilize():
-        try:
-            await page.wait_for_load_state("domcontentloaded", timeout=2000)
-        except:
-            pass
+        try: await page.wait_for_load_state("domcontentloaded", timeout=2000)
+        except: pass
         await asyncio.sleep(post_click_wait)
 
     for _ in range(timeout_loop):
-        # البحث في الصفحة الرئيسية وجميع الإطارات
         for target in [page] + list(page.frames):
             try:
-                # البحث عن زر (button) أو رابط (a) أو أي عنصر له دور زر
                 locators = [
                     target.get_by_role("button", name=pattern),
                     target.get_by_role("link", name=pattern),
@@ -83,27 +81,7 @@ async def click_button_by_text_anywhere(page, text, exact=True, timeout_loop=30,
                             await btn.click(timeout=3000, force=True)
                             await _post_click_stabilize()
                             return True
-            except:
-                pass
-        await asyncio.sleep(1)
-    return False
-
-# ========== دالة لانتظار واختيار حساب معين ==========
-async def select_account_by_email(page, email_substring, timeout_loop=30):
-    for _ in range(timeout_loop):
-        for target in [page] + list(page.frames):
-            try:
-                accounts = target.locator('div[data-email], div[data-identifier]')
-                for i in range(await accounts.count()):
-                    acc = accounts.nth(i)
-                    text = await acc.text_content()
-                    if email_substring.lower() in (text or "").lower():
-                        await acc.scroll_into_view_if_needed(timeout=1000)
-                        await acc.click(timeout=3000, force=True)
-                        await asyncio.sleep(3)
-                        return True
-            except:
-                pass
+            except: pass
         await asyncio.sleep(1)
     return False
 
@@ -150,11 +128,10 @@ async def run():
         else:
             send_tg("ℹ️ زر Sign in غير موجود.")
         
-        # 2. النقر على "Sign in with Google" باستخدام الدالة القوية
+        # 2. النقر على "Sign in with Google"
         google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
         if not google_clicked:
-            # محاولة بديلة: النقر على زر يحمل شعار G
-            google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=5)
+            google_clicked = await click_button_by_text_anywhere(page, "G", exact=True, timeout_loop=5)
         
         if google_clicked:
             send_tg("✅ تم النقر على Sign in with Google")
@@ -163,9 +140,9 @@ async def run():
             await page.screenshot(path="no_google_btn.png")
             send_tg("📸 صورة الصفحة", "no_google_btn.png")
         
-        # 3. انتظار فتح نافذة منبثقة أو الانتقال لصفحة الحسابات
         await asyncio.sleep(4)
-        # نبحث عن صفحة accounts.google.com ضمن context
+        
+        # 3. انتظار صفحة الحسابات (قد تكون accounts.google.com)
         account_page = None
         for p in context.pages:
             if "accounts.google.com" in p.url:
@@ -177,20 +154,47 @@ async def run():
             page = account_page
             await page.wait_for_load_state("networkidle", timeout=30000)
         else:
-            # ربما بقينا في نفس الصفحة ولكن تم تحميل iframe لتسجيل الدخول
-            send_tg("ℹ️ لم تظهر نافذة منفصلة، نبحث عن قائمة الحسابات في الصفحة الحالية")
+            send_tg("ℹ️ لم تظهر نافذة منفصلة.")
         
-        # 4. اختيار الحساب الذي يحتوي على "omarcora"
-        selected = await select_account_by_email(page, "omarcora", timeout_loop=20)
-        if selected:
-            send_tg("✅ تم اختيار حساب omarcora")
-            # انتظار اكتمال تسجيل الدخول
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(3)
-        else:
-            send_tg("⚠️ لم يتم العثور على حساب omarcora")
-            await page.screenshot(path="accounts_list.png")
-            send_tg("📸 قائمة الحسابات المتاحة", "accounts_list.png")
+        # 4. محاولة إدخال البريد الإلكتروني يدويًا (في حال عدم ظهور قائمة الحسابات)
+        try:
+            # انتظر حقل البريد الإلكتروني
+            email_input = page.locator("input[type='email'], input[name='identifier'], #identifierId").first
+            await email_input.wait_for(state="visible", timeout=10000)
+            await email_input.fill(TARGET_EMAIL)
+            send_tg(f"📧 تم إدخال البريد: {TARGET_EMAIL}")
+            
+            # النقر على Next
+            next_clicked = await click_button_by_text_anywhere(page, "Next", exact=True, timeout_loop=10)
+            if next_clicked:
+                send_tg("✅ تم النقر على Next")
+                await asyncio.sleep(4)
+                
+                # بعد Next، قد يطلب كلمة مرور (إذا كانت الكوكيز منتهية)
+                try:
+                    pass_input = page.locator("input[type='password']").first
+                    await pass_input.wait_for(state="visible", timeout=5000)
+                    send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة.")
+                    await page.screenshot(path="password_required.png")
+                    send_tg("📸 مطلوب كلمة مرور", "password_required.png")
+                    # هنا يمكن إضافة منطق لإدخال كلمة المرور إذا أردت
+                except:
+                    send_tg("✅ لم يُطلب كلمة مرور (تم التحقق تلقائياً).")
+            else:
+                send_tg("⚠️ لم يتم العثور على زر Next")
+        except Exception as e:
+            send_tg(f"ℹ️ لم يظهر حقل البريد: {str(e)[:40]}")
+            # ربما ظهرت قائمة الحسابات مباشرة
+            try:
+                # محاولة اختيار حساب omarcora
+                accounts = page.locator('div[data-email], div[data-identifier]')
+                target = accounts.filter(has_text="omarcora").first
+                if await target.count() > 0:
+                    await target.click()
+                    send_tg("✅ تم اختيار حساب omarcora من القائمة")
+                    await asyncio.sleep(4)
+            except:
+                pass
         
         # 5. العودة إلى صفحة اللاب
         lab_page = None

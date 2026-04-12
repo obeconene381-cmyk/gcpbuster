@@ -22,7 +22,6 @@ MY_COOKIES = [
     {"domain": "myaccount.google.com", "name": "OSID", "value": "g.a0007gi6PyETRCtIRHIthOjH1AMoPuTWNs3Vmk_q2ffnGit35WwoiNnR8xSA5FtWZ6AHtOMHtQACgYKAbASARMSFQHGX2MicG_A8MeAxMMWqeuG9awUbxoVAUF8yKoQE2UfitDk6VPiPH4S2ZPZ0076", "path": "/", "secure": True}
 ]
 
-
 def send_tg(msg, img=None):
     if not BOT_TOKEN or not CHAT_ID:
         return
@@ -62,7 +61,9 @@ async def run():
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-                "--disable-blink-features=AutomationControlled"
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--window-size=1280,720"
             ]
         )
         
@@ -84,21 +85,35 @@ async def run():
             await btn.wait_for(state="visible", timeout=20000)
             await btn.click()
             send_tg("🔘 تم الضغط على بدء المهمة.")
-        except:
+        except Exception:
             send_tg("⚠️ لم يتم العثور على زر البدء، ربما اللاب مفتوح مسبقًا.")
         
+        # بعد الضغط على زر Start Lab
         await asyncio.sleep(5)
         
-        # البحث عن إطار الكابتشا والتفاعل مع Buster
-        for frame in page.frames:
-            if "api2/anchor" in frame.url:
-                await frame.click(".recaptcha-checkbox-border", timeout=5000)
-                await asyncio.sleep(3)
-            if "api2/bframe" in frame.url:
-                send_tg("🤖 تم اكتشاف كابتشا، جاري تفعيل Buster...")
-                await frame.locator("#solver-button").click(timeout=10000)
+        try:
+            # انتظر وجود iframe reCAPTCHA
+            await page.wait_for_selector("iframe[src*='recaptcha']", timeout=15000)
+            
+            # النقر على مربع "أنا لست روبوت"
+            anchor_frame = page.frame_locator("iframe[title='reCAPTCHA']").first
+            await anchor_frame.locator(".recaptcha-checkbox-border").click(timeout=10000)
+            await asyncio.sleep(4)
+            
+            # البحث عن إطار التحدي
+            challenge_frame = page.frame_locator("iframe[title*='recaptcha challenge']").first
+            if await challenge_frame.locator("#rc-imageselect").count() > 0:
+                send_tg("🤖 تحدي صور ظهر، جاري استخدام Buster...")
+                # انتظر زر Buster (قد يكون داخل shadow DOM أحيانًا)
+                await challenge_frame.locator("#solver-button").wait_for(state="visible", timeout=10000)
+                await challenge_frame.locator("#solver-button").click()
                 await asyncio.sleep(12)
-                send_tg("✅ Buster قام بمحاولة حل الكابتشا.")
+                send_tg("✅ Buster قام بمحاولة الحل.")
+            else:
+                send_tg("ℹ️ لم يظهر تحدي، ربما تم التحقق تلقائيًا.")
+                
+        except Exception as e:
+            send_tg(f"⚠️ خطأ في معالجة الكابتشا: {str(e)[:80]}")
         
         # صورة نهائية
         await page.screenshot(path="final.png")

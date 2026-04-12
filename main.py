@@ -8,7 +8,7 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 
 # بيانات حساب جوجل
-EMAIL_USER = "omarcora02"
+EMAIL_USER = "omarcora01"
 EMAIL_PASS = "omar@2008"
 
 def send_telegram_photo(photo_path, caption):

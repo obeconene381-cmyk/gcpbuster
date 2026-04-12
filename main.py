@@ -3,14 +3,13 @@ import os
 import zipfile
 import requests
 import re
-import json
 from playwright.async_api import async_playwright
 
-# --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
+# إعدادات البروكسي الشغال (تم حذف استرو)
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
     "username": "user376353",
@@ -29,206 +28,141 @@ def send_tg(msg, img=None):
     try:
         if img and os.path.exists(img):
             with open(img, "rb") as f:
-                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=20)
         else:
-            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
-    except Exception as e:
-        print(f"Telegram error: {e}")
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=20)
+    except: pass
 
 async def get_ext():
-    dest = os.path.abspath("ext_folder")
-    zip_path = "buster.zip"
-    
-    # إذا لم يكن الملف موجوداً، نحاول تحميله
-    if not os.path.exists(zip_path):
-        send_tg("⏳ تحميل Buster...")
-        try:
-            url = "https://github.com/dessant/buster/archive/refs/heads/main.zip"
-            r = requests.get(url, timeout=60)
-            with open(zip_path, "wb") as f:
-                f.write(r.content)
-            send_tg("✅ تم تحميل Buster")
-        except Exception as e:
-            send_tg(f"❌ فشل التحميل: {e}")
-            return None
-    
-    if os.path.exists(zip_path):
-        with zipfile.ZipFile(zip_path, 'r') as z:
+    dest = "ext_folder"
+    if os.path.exists("buster-main.zip"):
+        with zipfile.ZipFile("buster-main.zip", 'r') as z:
             z.extractall(dest)
         for r, d, f in os.walk(dest):
-            if "manifest.json" in f:
-                return os.path.abspath(r)
-    return dest
+            if "manifest.json" in f: return os.path.abspath(r)
+    return os.path.abspath(dest)
 
+# --- دالة الضغط على Start Lab ---
 async def click_start_lab_button(page):
     pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
-    for i in range(30): 
-        try:
-            # البحث في الصفحة الرئيسية فقط أولاً
-            btns = page.get_by_role("button", name=pattern)
-            if await btns.count() > 0:
-                b = btns.first
-                if await b.is_visible():
-                    await b.click(force=True)
-                    send_tg("✅ تم النقر على Start Lab")
-                    return True
-        except:
-            pass
-        
-        # البحث في الـ iframes
-        for frame in page.frames:
+    for _ in range(60): # محاولة لمدة دقيقة
+        for target in [page] + list(page.frames):
             try:
-                btns = frame.get_by_role("button", name=pattern)
+                btns = target.get_by_role("button", name=pattern)
                 if await btns.count() > 0:
                     b = btns.first
                     if await b.is_visible():
                         await b.click(force=True)
-                        send_tg("✅ تم النقر على Start Lab (داخل iframe)")
+                        send_tg("✅ تم النقر على Start Lab")
                         return True
-            except:
-                continue
-        
+            except: continue
         await asyncio.sleep(1)
     return False
 
+# --- دالة الضغط على الكابتشا ---
 async def click_captcha_checkbox(page):
-    send_tg("🔍 البحث عن مربع الكابتشا...")
+    send_tg("🤛 جاري البحث عن مربع الكابتشا...")
     try:
-        await asyncio.sleep(2)
-        iframes = await page.locator('iframe[title*="reCAPTCHA"], iframe[src*="recaptcha"]').all()
-        
-        for iframe in iframes:
-            try:
-                frame_content = await iframe.content_frame()
-                if frame_content:
-                    checkbox = frame_content.locator('.recaptcha-checkbox-border').first
-                    if await checkbox.count() > 0 and await checkbox.is_visible():
-                        await checkbox.click(force=True)
-                        send_tg("✅ تم الضغط على مربع الكابتشا")
-                        await asyncio.sleep(2)
-                        return True
-            except:
-                continue
-        
-        # محاولة ثانية بالـ JS
-        try:
-            await page.evaluate('''
-                const checkbox = document.querySelector('.recaptcha-checkbox-border');
-                if (checkbox) checkbox.click();
-            ''')
-            send_tg("✅ تم الضغط على المربع (JS)")
-            return True
-        except:
-            pass
-            
-        return False
-    except Exception as e:
-        send_tg(f"❌ خطأ الكابتشا: {str(e)[:100]}")
-        return False
-
-async def handle_buster(page):
-    send_tg("🕵️ البحث عن زر Buster...")
-    try:
-        # انتظار ظهور تحدي الصور
         await asyncio.sleep(3)
-        
-        challenge_frame = page.frame_locator('iframe[src*="api2/bframe"], iframe[title*="challenge"]').first
-        buster_btn = challenge_frame.locator("#solver-button")
-        
-        await buster_btn.wait_for(state="visible", timeout=15000)
-        await buster_btn.click(force=True)
-        send_tg("🎯 تم الضغط على Buster!")
-        
-        # انتظار الحل (6 ثوانٍ كما طلبت)
-        await asyncio.sleep(6)
-        return True
-        
-    except Exception as e:
-        send_tg(f"⚠️ Buster غير متوفر: {str(e)[:100]}")
+        iframes = await page.locator('iframe').all()
+        for iframe in iframes:
+            frame_content = iframe.content_frame
+            checkbox = frame_content.locator('.recaptcha-checkbox-border').first
+            if await checkbox.count() > 0:
+                await checkbox.click(force=True, delay=150)
+                send_tg("✅ تم الضغط على المربع بنجاح")
+                await asyncio.sleep(2)
+                await page.screenshot(path="after_click.png", full_page=True)
+                send_tg("📸 حالة الكابتشا بعد الضغط:", "after_click.png")
+                return True
+        send_tg("❌ لم يتم العثور على المربع.")
         return False
-
-async def click_launch_credits(page):
+    except: return False
+async def human_click(page, locator):
+    """دالة لمحاكاة حركة ونقرة الماوس البشرية"""
     try:
-        pattern = re.compile(r"Launch\s*with\s*(\d+\s*)?Credits?", re.IGNORECASE)
-        btn = page.get_by_role("button", name=pattern)
+        # محاولة جلب إحداثيات الزر على الشاشة
+        await locator.scroll_into_view_if_needed()
+        box = await locator.bounding_box()
         
-        if await btn.count() > 0:
-            await btn.first.click(force=True)
-            send_tg("🚀 تم الضغط على Launch Credits")
-            await asyncio.sleep(3)
-            return True
-    except:
-        pass
-    return False
+        if box:
+            # حساب منتصف الزر
+            x = box["x"] + box["width"] / 2
+            y = box["y"] + box["height"] / 2
+            
+            # تحريك الماوس تدريجياً (steps=10 تبطئ الحركة لتبدو طبيعية)
+            await page.mouse.move(x, y, steps=10)
+            await asyncio.sleep(0.2) # توقف بسيط فوق الزر
+            
+            # الضغط والإفلات مع تأخير بسيط
+            await page.mouse.down()
+            await asyncio.sleep(0.15) 
+            await page.mouse.up()
+        else:
+            # خطة بديلة إذا لم نجد الإحداثيات
+            await locator.click(delay=200)
+    except Exception as e:
+        send_tg(f"⚠️ فشل النقر البشري: {str(e)[:50]}")
+        await locator.click(delay=200)
+
+# --- دالة Buster ---
+async def handle_buster(page):
+    try:
+        challenge_frame = page.frame_locator('iframe[src*="api2/bframe"]').first
+        audio_btn = challenge_frame.locator("#recaptcha-audio-button")
+        await audio_btn.wait_for(state="visible", timeout=10000)
+        await audio_btn.click()
+        await asyncio.sleep(2)
+        buster_btn = challenge_frame.locator("#solver-button")
+        await buster_btn.click()
+        send_tg("🎯 تم تفعيل Buster لحل التحدي")
+        await asyncio.sleep(10)
+    except: pass
 
 async def run():
-    send_tg("🚀 بدء التشغيل...")
     ext_path = await get_ext()
-    
-    if not ext_path or not os.path.exists(ext_path):
-        send_tg("❌ ملف Buster غير موجود")
-        return
-
     async with async_playwright() as p:
+        # الحقن في launch
         browser = await p.chromium.launch(
             headless=True,
-            proxy=WORKING_PROXY,
+            proxy=WORKING_PROXY, 
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
                 "--no-sandbox",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-dev-shm-usage",
-                "--disable-gpu"
+                "--disable-blink-features=AutomationControlled"
             ]
         )
-
-        context = await browser.new_context(
-            proxy=WORKING_PROXY,
-            viewport={'width': 1280, 'height': 720}
-        )
         
+        # التأكيد على الحقن في context أيضاً لضمان عدم التسريب
+        context = await browser.new_context(proxy=WORKING_PROXY)
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
 
         try:
-            send_tg("🌐 فتح اللاب...")
-            await page.goto(LAB_URL, timeout=90000, wait_until="domcontentloaded")
-            await page.wait_for_load_state("networkidle", timeout=30000)
-
-            # 1. الضغط على Start Lab
-            if not await click_start_lab_button(page):
-                send_tg("❌ لم يتم العثور على زر Start Lab")
-                await page.screenshot(path="error_start.png", full_page=True)
-                send_tg("📸:", "error_start.png")
-                return
-
-            await asyncio.sleep(3)
-
-            # 2. الضغط على الكابتشا
-            captcha_ok = await click_captcha_checkbox(page)
+            send_tg("🌐 جاري محاولة فتح الصفحة بالبروكسي الجديد...")
+            # استخدمنا wait_until="commit" ليكون أسرع ولا يتوقف عند ملفات التتبع
+            await page.goto(LAB_URL, timeout=90000, wait_until="commit")
             
-            if captcha_ok:
-                await asyncio.sleep(3)
-                
-                # 3. محاولة Buster
+            # انتظر يدوياً ظهور شيء في الصفحة للتأكد
+            await page.wait_for_load_state("domcontentloaded", timeout=30000)
+            
+            await page.screenshot(path="loaded.png")
+            send_tg("📸 تم تحميل الصفحة بنجاح", "loaded.png")
+
+            if await click_start_lab_button(page):
+                await asyncio.sleep(5)
+                await click_captcha_checkbox(page)
                 await handle_buster(page)
                 
-                # 4. الضغط على Launch إذا ظهر
-                await click_launch_credits(page)
-            
-            # 5. النتيجة النهائية
-            await asyncio.sleep(2)
-            await page.screenshot(path="final_result.png", full_page=True)
-            send_tg("📸 النتيجة النهائية:", "final_result.png")
+                await asyncio.sleep(5)
+                await page.screenshot(path="final.png")
+                send_tg("🏁 انتهت المهمة", "final.png")
+            else:
+                send_tg("❌ لم أجد زر Start Lab")
 
         except Exception as e:
-            send_tg(f"❌ خطأ: {str(e)[:200]}")
-            try:
-                await page.screenshot(path="error.png", full_page=True)
-                send_tg("📸 خطأ:", "error.png")
-            except:
-                pass
+            send_tg(f"❌ خطأ: {str(e)[:100]}")
         finally:
             await browser.close()
 

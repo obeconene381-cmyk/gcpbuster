@@ -47,7 +47,7 @@ jobs:
           ls -la
 
       - name: Run Automation Script
-        run: python bot.py
+        run: python main.py
         env:
           PYTHONUNBUFFERED: "1"
 

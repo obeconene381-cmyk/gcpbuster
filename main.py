@@ -126,7 +126,7 @@ async def run():
 
 if __name__ == "__main__":
     asyncio.run(run())
-                return os.path.abspath(r)
+    return os.path.abspath(r)
     return os.path.abspath(dest)
 
 async def get_page_html(page):

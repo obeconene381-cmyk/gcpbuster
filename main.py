@@ -72,269 +72,68 @@ async def click_start_lab_button(page, timeout_loop=120, post_click_wait=3):
 
     return False
 
-# ============================================================
-# معالجة الكابتشا - 10 طرق للنقر
-# ============================================================
-async def is_checkbox_checked(frame):
-    """التحقق مما إذا تم تحديد الكابتشا"""
-    try:
-        result = await frame.evaluate("""
-            () => {
-                const checked = document.querySelector('.recaptcha-checkbox-checked');
-                const input = document.querySelector('input[aria-checked="true"]');
-                return (checked !== null) || (input !== null);
-            }
-        """)
-        return result
-    except:
-        return False
-
 async def click_captcha_checkbox(page):
-    """10 طرق للنقر على checkbox الكابتشا"""
-
-    # انتظار ظهور iframe الكابتشا (حتى 20 ثانية)
-    send_tg("🤛 انتظار ظهور iframe الكابتشا...")
-    anchor_frame = None
-    for _ in range(20):
-        for frame in page.frames:
-            if "recaptcha/api2/anchor" in frame.url:
-                anchor_frame = frame
-                break
-        if anchor_frame:
-            break
-        await asyncio.sleep(1)
-
-    if not anchor_frame:
-        send_tg("❌ لم يتم العثور على iframe الكابتشا")
+    """طريقة واحدة نظيفة وقوية باستخدام frame_locator للتعامل مع الـ iframe الديناميكي"""
+    send_tg("🤛 محاولة النقر على مربع الكابتشا...")
+    try:
+        # استخدام frame_locator هو الأفضل للـ iframes في Playwright
+        captcha_frame = page.frame_locator('iframe[src*="api2/anchor"]').first
+        
+        # تحديد مربع الاختيار
+        checkbox = captcha_frame.locator('#recaptcha-anchor')
+        
+        # الانتظار حتى يصبح المربع مرئياً وموجوداً في الـ DOM
+        await checkbox.wait_for(state="visible", timeout=20000)
+        
+        # التمرير إليه لضمان ظهوره في الشاشة
+        await checkbox.scroll_into_view_if_needed()
+        
+        # محاكاة حركة الماوس وتأخير النقر لتبدو كحركة بشرية
+        await checkbox.hover()
+        await asyncio.sleep(0.5)
+        await checkbox.click(delay=150)
+        
+        send_tg("✅ تم النقر على مربع الكابتشا")
+        return True
+    except Exception as e:
+        send_tg(f"❌ فشل النقر على مربع الكابتشا: {str(e)[:60]}")
         return False
-
-    send_tg("✅ تم العثور على iframe الكابتشا")
-
-    # انتظار تحميل المحتوى
-    await asyncio.sleep(3)
-
-    # ====== الطريقة 1: get_by_role ======
-    try:
-        send_tg("🎯 محاولة 1: get_by_role")
-        checkbox = anchor_frame.get_by_role("checkbox").first
-        if await checkbox.count() > 0:
-            await checkbox.scroll_into_view_if_needed(timeout=5000)
-            await checkbox.click(force=True, timeout=5000)
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 1)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 1 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 2: locator مباشر ======
-    try:
-        send_tg("🎯 محاولة 2: locator مباشر")
-        checkbox = anchor_frame.locator(".recaptcha-checkbox-border").first
-        if await checkbox.count() > 0:
-            await checkbox.scroll_into_view_if_needed(timeout=5000)
-            await checkbox.click(force=True, timeout=5000)
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 2)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 2 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 3: locator بالـ ID ======
-    try:
-        send_tg("🎯 محاولة 3: locator بالـ ID")
-        checkbox = anchor_frame.locator("#recaptcha-anchor").first
-        if await checkbox.count() > 0:
-            await checkbox.scroll_into_view_if_needed(timeout=5000)
-            await checkbox.click(force=True, timeout=5000)
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 3)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 3 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 4: النقر بالإحداثيات ======
-    try:
-        send_tg("🎯 محاولة 4: النقر بالإحداثيات")
-        coords = await anchor_frame.evaluate("""
-            () => {
-                const el = document.querySelector('.recaptcha-checkbox-border') || 
-                          document.querySelector('#recaptcha-anchor') ||
-                          document.querySelector('[role="checkbox"]');
-                if (el) {
-                    const rect = el.getBoundingClientRect();
-                    return {x: rect.left + rect.width/2, y: rect.top + rect.height/2};
-                }
-                return null;
-            }
-        """)
-        if coords:
-            await page.mouse.click(coords['x'], coords['y'])
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 4)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 4 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 5: JavaScript click ======
-    try:
-        send_tg("🎯 محاولة 5: JavaScript click")
-        await anchor_frame.evaluate("""
-            () => {
-                const el = document.querySelector('.recaptcha-checkbox-border') || 
-                          document.querySelector('#recaptcha-anchor') ||
-                          document.querySelector('[role="checkbox"]');
-                if (el) {
-                    el.click();
-                    el.dispatchEvent(new Event('change', {bubbles: true}));
-                    return true;
-                }
-                return false;
-            }
-        """)
-        await asyncio.sleep(3)
-        if await is_checkbox_checked(anchor_frame):
-            send_tg("✅ تم تحديد checkbox (طريقة 5)")
-            return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 5 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 6: dispatch_event ======
-    try:
-        send_tg("🎯 محاولة 6: dispatch_event")
-        checkbox = anchor_frame.locator(".recaptcha-checkbox-border").first
-        if await checkbox.count() > 0:
-            await checkbox.dispatch_event("click")
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 6)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 6 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 7: focus + Enter ======
-    try:
-        send_tg("🎯 محاولة 7: focus + Enter")
-        checkbox = anchor_frame.locator("#recaptcha-anchor").first
-        if await checkbox.count() > 0:
-            await checkbox.focus()
-            await asyncio.sleep(1)
-            await checkbox.press("Enter")
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 7)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 7 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 8: النقر على span الداخلي ======
-    try:
-        send_tg("🎯 محاولة 8: النقر على span الداخلي")
-        checkbox = anchor_frame.locator("span.recaptcha-checkbox").first
-        if await checkbox.count() > 0:
-            await checkbox.scroll_into_view_if_needed(timeout=5000)
-            await checkbox.click(force=True, timeout=5000)
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 8)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 8 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 9: tabindex ======
-    try:
-        send_tg("🎯 محاولة 9: البحث بـ tabindex")
-        checkbox = anchor_frame.locator('[tabindex="0"]').first
-        if await checkbox.count() > 0:
-            await checkbox.scroll_into_view_if_needed(timeout=5000)
-            await checkbox.click(force=True, timeout=5000)
-            await asyncio.sleep(3)
-            if await is_checkbox_checked(anchor_frame):
-                send_tg("✅ تم تحديد checkbox (طريقة 9)")
-                return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 9 فشلت: {str(e)[:60]}")
-
-    # ====== الطريقة 10: querySelectorAll + index ======
-    try:
-        send_tg("🎯 محاولة 10: querySelectorAll")
-        await anchor_frame.evaluate("""
-            () => {
-                const elements = document.querySelectorAll('*');
-                for (const el of elements) {
-                    if (el.getAttribute('role') === 'checkbox' || 
-                        el.classList.contains('recaptcha-checkbox-border')) {
-                        el.click();
-                        el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                        return true;
-                    }
-                }
-                return false;
-            }
-        """)
-        await asyncio.sleep(3)
-        if await is_checkbox_checked(anchor_frame):
-            send_tg("✅ تم تحديد checkbox (طريقة 10)")
-            return True
-    except Exception as e:
-        send_tg(f"⚠️ طريقة 10 فشلت: {str(e)[:60]}")
-
-    send_tg("❌ فشلت جميع محاولات النقر على checkbox")
-    return False
 
 async def handle_buster(page):
-    """معالجة Buster"""
-    send_tg("🔊 جاري البحث عن iframe التحدي...")
-
-    # انتظار iframe التحدي
-    challenge_frame = None
-    for _ in range(20):
-        for frame in page.frames:
-            if "api2/bframe" in frame.url:
-                challenge_frame = frame
-                break
-        if challenge_frame:
-            break
-        await asyncio.sleep(1)
-
-    if not challenge_frame:
-        send_tg("⚠️ لم يظهر iframe التحدي")
+    """معالجة Buster وتجنب خطأ TypeError الذي ظهر لك"""
+    send_tg("🔊 جاري البحث عن نافذة التحدي (Buster)...")
+    try:
+        # الوصول لـ iframe التحدي
+        challenge_frame = page.frame_locator('iframe[src*="api2/bframe"]').first
+        
+        # تحديد زر الصوت
+        audio_btn = challenge_frame.locator("#recaptcha-audio-button")
+        
+        # الانتظار حتى يظهر زر الصوت (في حال ظهر التحدي أصلاً)
+        await audio_btn.wait_for(state="visible", timeout=10000)
+        await audio_btn.click(delay=150)
+        send_tg("🔊 تم النقر على زر الصوت")
+        await asyncio.sleep(2)
+        
+        # تحديد زر Buster
+        buster_btn = challenge_frame.locator("#solver-button")
+        await buster_btn.wait_for(state="visible", timeout=5000)
+        
+        for attempt in range(3):
+            send_tg(f"🎯 Buster محاولة {attempt + 1}/3...")
+            try:
+                await buster_btn.click(delay=100)
+                await asyncio.sleep(15) # انتظار Buster ليقوم بجلب وحل الصوت
+                send_tg(f"✅ Buster محاولة {attempt + 1} اكتملت")
+                break # الخروج من الحلقة عند النجاح
+            except Exception as e:
+                send_tg(f"⚠️ Buster محاولة {attempt + 1} فشلت: {str(e)[:60]}")
+                await asyncio.sleep(2)
+        return True
+    except Exception as e:
+        send_tg("⚠️ لم يظهر تحدي الصوت أو تم التجاوز التلقائي.")
         return False
 
-    send_tg("✅ تم العثور على iframe التحدي")
-    await asyncio.sleep(3)
-
-    # النقر على زر الصوت
-    try:
-        audio_btn = challenge_frame.locator("#recaptcha-audio-button").first
-        if await audio_btn.count() > 0:
-            await audio_btn.click(force=True, timeout=5000)
-            send_tg("🔊 تم النقر على زر الصوت")
-            await asyncio.sleep(3)
-    except:
-        pass
-
-    # استخدام Buster
-    for attempt in range(3):
-        send_tg(f"🎯 Buster محاولة {attempt + 1}/3...")
-        try:
-            buster_btn = challenge_frame.locator("#solver-button").first
-            if await buster_btn.count() > 0:
-                await buster_btn.scroll_into_view_if_needed(timeout=3000)
-                await buster_btn.click(force=True, timeout=5000)
-            else:
-                await challenge_frame.evaluate("document.querySelector('#solver-button').click()")
-
-            await asyncio.sleep(20)
-            send_tg(f"✅ Buster محاولة {attempt + 1} اكتملت")
-        except Exception as e:
-            send_tg(f"⚠️ Buster محاولة {attempt + 1}: {str(e)[:60]}")
-        await asyncio.sleep(2)
-
-    return True
 
 async def run():
     send_tg("🚀 بدء المهمة (كود قوي للكابتشا)...")

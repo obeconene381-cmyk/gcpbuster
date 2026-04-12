@@ -1,11 +1,19 @@
 name: Google Skills Automation
+
 on:
   workflow_dispatch:
+    inputs:
+      lab_url:
+        description: 'رابط اللاب (Google Skills)'
+        required: true
+        type: string
+        default: 'https://www.skills.google/focuses/19146?parent=catalog'
 
 jobs:
   run-automation:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -15,13 +23,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: Install Requirements
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
           pip install playwright requests
-          python -m playwright install chromium --with-deps
+          playwright install chromium --with-deps
 
-      - name: Run Playwright with Xvfb
+      - name: Download Buster Extension
         run: |
-          xvfb-run -a --server-args="-screen 0 1280x720x24" python main.py
+          if [ ! -f "buster-main.zip" ]; then
+            wget -q -O buster-main.zip https://github.com/dessant/buster/archive/refs/heads/main.zip
+          fi
+
+      - name: Run Playwright Script
+        env:
+          LAB_URL: ${{ github.event.inputs.lab_url }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py

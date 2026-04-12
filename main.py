@@ -5,19 +5,16 @@ import requests
 import re
 from playwright.async_api import async_playwright
 
-# --- الإعدادات الثابتة ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# البروكسي الشغال 100%
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
     "username": "user376353",
     "password": "y3ld6w"
 }
 
-# الكوكيز الخاصة بك
 MY_COOKIES = [
     {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
     {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775996404$o97$g1$t1775996563$j32$l0$h0", "path": "/"},
@@ -25,7 +22,6 @@ MY_COOKIES = [
     {"domain": "www.skills.google", "name": "user.id", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOVE13TmpJMyIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--3706d9f3abb091776145342b4e9be6e645941d44", "path": "/", "secure": True},
 ]
 
-# --- دوال المساعدة ---
 def send_tg(msg, img=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
     try:
@@ -37,110 +33,124 @@ def send_tg(msg, img=None):
     except: pass
 
 async def get_ext():
-    dest = os.path.abspath("ext_folder")
+    dest = "ext_folder"
     if os.path.exists("buster-main.zip"):
         with zipfile.ZipFile("buster-main.zip", 'r') as z:
             z.extractall(dest)
         for r, d, f in os.walk(dest):
             if "manifest.json" in f: return os.path.abspath(r)
-    return dest
+    return os.path.abspath(dest)
 
-# --- تنفيذ المهمة ---
+# --- دالة الضغط على Start Lab (كما هي بدون تغيير) ---
+async def click_start_lab_button(page):
+    pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
+    for _ in range(60): 
+        for target in [page] + list(page.frames):
+            try:
+                btns = target.get_by_role("button", name=pattern)
+                if await btns.count() > 0:
+                    b = btns.first
+                    if await b.is_visible():
+                        await b.click(force=True)
+                        send_tg("✅ تم النقر على Start Lab")
+                        return True
+            except: continue
+        await asyncio.sleep(1)
+    return False
+
+# --- دالة الضغط على الكابتشا (كما هي بدون تغيير) ---
+async def click_captcha_checkbox(page):
+    send_tg("🤛 جاري البحث عن مربع الكابتشا...")
+    try:
+        await asyncio.sleep(3)
+        iframes = await page.locator('iframe').all()
+        for iframe in iframes:
+            frame_content = iframe.content_frame
+            checkbox = frame_content.locator('.recaptcha-checkbox-border').first
+            if await checkbox.count() > 0:
+                await checkbox.click(force=True, delay=150)
+                send_tg("✅ تم الضغط على المربع بنجاح")
+                return True
+        send_tg("❌ لم يتم العثور على المربع.")
+        return False
+    except: return False
+
+# --- دالة التخطي (تحسين صيد الشخص الأصفر) ---
+async def handle_buster_direct(page):
+    send_tg("🕵️ جاري البحث عن الشخص الأصفر داخل الفريم...")
+    try:
+        # الوصول للفريم الذي يحتوي على تحدي الصور
+        challenge_frame = page.frame_locator('iframe[title*="challenge"], iframe[src*="api2/bframe"]').first
+        
+        # الزر الأصفر يحمل ID solver-button، ننتظر ظهوره الفعلي
+        buster_btn = challenge_frame.locator("#solver-button")
+        
+        # الانتظار حتى يصبح الزر مرئياً (زدنا الوقت لـ 15 ثانية لضمان الحقن)
+        await buster_btn.wait_for(state="visible", timeout=15000)
+        
+        await buster_btn.click(force=True)
+        send_tg("🎯 تم الضغط على الشخص الأصفر! جاري الحل...")
+        
+        # انتظار 8 ثواني لضمان انتهاء الإضافة من عملها
+        await asyncio.sleep(8)
+        
+    except Exception as e:
+        send_tg("❌ الشخص الأصفر لم يظهر، قد تكون الإضافة لم تُحقن بشكل صحيح في هذا الفريم")
+
+# --- التشغيل الرئيسي ---
 async def run():
+    send_tg("🚀 بدء المهمة...")
     ext_path = await get_ext()
-    user_data_dir = os.path.abspath("browser_profile") # بروفايل المتصفح
     
     async with async_playwright() as p:
-        # 1. فتح المتصفح بوضع الـ Persistent لضمان عمل الإضافة
-        context = await p.chromium.launch_persistent_context(
-            user_data_dir,
+        browser = await p.chromium.launch(
             headless=True,
-            proxy=WORKING_PROXY,
+            proxy=WORKING_PROXY, 
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled"
-            ],
-            viewport={'width': 1280, 'height': 720}
+            ]
         )
         
-        # 2. حقن الكوكيز داخل الـ Context
+        context = await browser.new_context(proxy=WORKING_PROXY)
         await context.add_cookies(MY_COOKIES)
-        page = context.pages[0] if context.pages else await context.new_page()
+        page = await context.new_page()
 
         try:
             send_tg("🌐 فتح صفحة اللاب...")
             await page.goto(LAB_URL, timeout=90000, wait_until="commit")
             await page.wait_for_load_state("domcontentloaded", timeout=30000)
-
-            # 3. الضغط على زر Start Lab
-            pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
-            clicked_lab = False
-            for _ in range(30):
-                for target in [page] + list(page.frames):
-                    btns = target.get_by_role("button", name=pattern)
-                    if await btns.count() > 0:
-                        await btns.first.click(force=True)
-                        send_tg("✅ تم النقر على Start Lab")
-                        clicked_lab = True
-                        break
-                if clicked_lab: break
-                await asyncio.sleep(1)
-
-            if clicked_lab:
+            
+            if await click_start_lab_button(page):
                 await asyncio.sleep(5)
                 
-                # 4. البحث عن مربع الكابتشا والنقر عليه
-                found_check = False
-                iframes = await page.locator('iframe').all()
-                for iframe in iframes:
-                    frame_content = iframe.content_frame
-                    checkbox = frame_content.locator('.recaptcha-checkbox-border').first
-                    if await checkbox.count() > 0:
-                        await checkbox.click(force=True)
-                        send_tg("✅ تم الضغط على مربع الكابتشا")
-                        found_check = True
-                        break
+                # الضغط على المربع
+                await click_captcha_checkbox(page)
+                await asyncio.sleep(4) # وقت إضافي لظهور الصور
                 
-                if found_check:
-                    await asyncio.sleep(5)
-                    
-                    # 5. الضغط على الشخص الأصفر (Buster)
-                    send_tg("🕵️ جاري البحث عن الشخص الأصفر لحل التحدي...")
-                    challenge_frame = page.frame_locator('iframe[src*="api2/bframe"]').first
-                    buster_btn = challenge_frame.locator("#solver-button")
-                    
-                    try:
-                        await buster_btn.wait_for(state="visible", timeout=12000)
-                        await buster_btn.click(force=True)
-                        send_tg("🎯 تم الضغط على الشخص الأصفر! ننتظر 6 ثوانٍ...")
-                        
-                        # انتظار 6 ثوانٍ كما طلبت
-                        await asyncio.sleep(6)
-                        
-                        # 6. تصوير النتيجة (توقع ظهور Launch with 5 credits)
-                        await page.screenshot(path="after_solve.png", full_page=True)
-                        send_tg("📸 نتيجة التخطي ونافذة الـ Credits:", "after_solve.png")
-                        
-                        # محاولة الضغط على Launch with 5 Credits إذا ظهرت
-                        launch_btn = page.get_by_role("button", name=re.compile(r"Launch\s*with\s*5\s*Credits", re.IGNORECASE))
-                        if await launch_btn.count() > 0:
-                            await launch_btn.first.click(force=True)
-                            send_tg("🚀 تم الضغط على Launch with 5 Credits!")
-                            await asyncio.sleep(5)
-                            await page.screenshot(path="lab_started.png")
-                            send_tg("📸 اللاب بدأ فعلياً:", "lab_started.png")
-                            
-                    except Exception as e:
-                        send_tg("❌ الشخص الأصفر لم يظهر أو حدث خطأ في التخطي.")
-                        await page.screenshot(path="error_buster.png")
-                        send_tg("📸 لقطة شاشة للخطأ:", "error_buster.png")
+                # تخطي الكابتشا بالشخص الأصفر
+                await handle_buster_direct(page)
+                
+                # لقطة شاشة للنتيجة
+                await page.screenshot(path="final_result.png", full_page=True)
+                send_tg("📸 النتيجة النهائية بعد محاولة التخطي:", "final_result.png")
+                
+                # فحص ظهور زر Credits
+                try:
+                    launch_btn = page.locator("text=Launch with 5 Credits").first
+                    if await launch_btn.count() > 0:
+                        send_tg("✅ نافذة Credits ظهرت بنجاح!")
+                except: pass
+
+            else:
+                send_tg("❌ لم أجد زر Start Lab")
 
         except Exception as e:
-            send_tg(f"❌ خطأ عام في السكريبت: {str(e)[:150]}")
+            send_tg(f"❌ خطأ عام: {str(e)[:100]}")
         finally:
-            await context.close()
+            await browser.close()
 
 if __name__ == "__main__":
     asyncio.run(run())

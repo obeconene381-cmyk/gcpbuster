@@ -11,10 +11,8 @@ CHAT_ID = "8092953314"
 # =====================================
 
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
-TARGET_EMAIL = "omarcora21@gmail.com"
 
 MY_COOKIES = [
-    # قائمة الكوكيز (من الأفضل تحديثها)
     {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-3PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
@@ -85,19 +83,23 @@ async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30
     return False
 
 async def run():
-    send_tg("🚀 بدأت المحاولة باستخدام Firefox + Stealth...")
+    send_tg("🚀 بدأت المحاولة. جاري تجهيز المتصفح...")
     ext_path = await get_ext()
     
     async with async_playwright() as p:
-        # استخدام Firefox بدلاً من Chromium
-        browser = await p.firefox.launch(
+        browser = await p.chromium.launch(
             headless=True,
             args=[
+                f"--disable-extensions-except={ext_path}",
+                f"--load-extension={ext_path}",
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-                "--window-size=1280,720"
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--window-size=1280,720",
+                "--disable-popup-blocking"
             ]
         )
         
@@ -105,20 +107,6 @@ async def run():
             viewport={'width': 1280, 'height': 720},
             accept_downloads=True,
         )
-        
-        # تطبيق stealth عبر إزالة خصائص webdriver
-        await context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5]
-            });
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en']
-            });
-        """)
-        
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
         
@@ -129,13 +117,11 @@ async def run():
         await page.screenshot(path="before_signin.png")
         send_tg("📸 قبل تسجيل الدخول", "before_signin.png")
         
-        # 1. النقر على Sign in في الأعلى
+        # 1. النقر على Sign in
         signin_clicked = await click_button_by_text_anywhere(page, "Sign in", exact=True, timeout_loop=10)
         if signin_clicked:
             send_tg("✅ تم النقر على Sign in")
             await asyncio.sleep(3)
-        else:
-            send_tg("ℹ️ زر Sign in غير موجود.")
         
         # 2. النقر على "Sign in with Google"
         google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
@@ -143,8 +129,6 @@ async def run():
             send_tg("✅ تم النقر على Sign in with Google")
         else:
             send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
-            await page.screenshot(path="no_google_btn.png")
-            send_tg("📸 صورة الصفحة", "no_google_btn.png")
         
         await asyncio.sleep(4)
         
@@ -156,46 +140,27 @@ async def run():
                 break
         
         if account_page:
-            send_tg(f"🪟 تم فتح صفحة الحسابات: {account_page.url[:60]}")
+            send_tg(f"🪟 تم فتح صفحة الحسابات")
             page = account_page
             await page.wait_for_load_state("networkidle", timeout=30000)
-        else:
-            send_tg("ℹ️ لم تظهر نافذة منفصلة.")
         
-        # 4. محاولة إدخال البريد الإلكتروني
+        # 4. اختيار أول حساب في القائمة
         try:
-            email_input = page.locator("input[type='email'], input[name='identifier'], #identifierId").first
-            await email_input.wait_for(state="visible", timeout=10000)
-            await email_input.fill(TARGET_EMAIL)
-            send_tg(f"📧 تم إدخال البريد: {TARGET_EMAIL}")
-            
-            next_clicked = await click_button_by_text_anywhere(page, "Next", exact=True, timeout_loop=10)
-            if next_clicked:
-                send_tg("✅ تم النقر على Next")
-                await asyncio.sleep(4)
+            # انتظر ظهور أي حساب
+            await page.wait_for_selector('div[data-email], div[data-identifier]', timeout=15000)
+            first_account = page.locator('div[data-email], div[data-identifier]').first
+            if await first_account.count() > 0:
+                email_text = await first_account.text_content()
+                send_tg(f"👤 اختيار أول حساب: {email_text.strip()}")
+                await first_account.click()
+                await page.wait_for_load_state("networkidle", timeout=30000)
+                await asyncio.sleep(3)
                 
-                try:
-                    pass_input = page.locator("input[type='password']").first
-                    await pass_input.wait_for(state="visible", timeout=5000)
-                    send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة أو الحساب محمي.")
-                    await page.screenshot(path="password_required.png")
-                    send_tg("📸 مطلوب كلمة مرور", "password_required.png")
-                except:
-                    send_tg("✅ لم يُطلب كلمة مرور (تم التحقق تلقائياً).")
-            else:
-                send_tg("⚠️ لم يتم العثور على زر Next")
+                # صورة بعد اختيار الحساب
+                await page.screenshot(path="account_selected.png")
+                send_tg("📸 بعد اختيار الحساب", "account_selected.png")
         except Exception as e:
-            send_tg(f"ℹ️ لم يظهر حقل البريد: {str(e)[:40]}")
-            # ربما ظهرت قائمة الحسابات
-            try:
-                accounts = page.locator('div[data-email], div[data-identifier]')
-                target = accounts.filter(has_text="omarcora").first
-                if await target.count() > 0:
-                    await target.click()
-                    send_tg("✅ تم اختيار حساب omarcora من القائمة")
-                    await asyncio.sleep(4)
-            except:
-                pass
+            send_tg(f"⚠️ لم تظهر قائمة حسابات: {str(e)[:40]}")
         
         # 5. العودة إلى صفحة اللاب
         lab_page = None

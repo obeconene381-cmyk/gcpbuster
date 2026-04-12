@@ -11,10 +11,10 @@ CHAT_ID = "8092953314"
 # =====================================
 
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
-TARGET_EMAIL = "omarcora02@gmail.com"  # الحساب المستهدف
+TARGET_EMAIL = "omarcora21@gmail.com"
 
 MY_COOKIES = [
-    # قائمة الكوكيز الحالية (يُرجى تحديثها لاحقًا)
+    # قائمة الكوكيز (من الأفضل تحديثها)
     {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-3PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
@@ -55,7 +55,6 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# دالة قوية للنقر على زر بالنص
 async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30, post_click_wait=3):
     pattern = re.compile(rf"^\s*{re.escape(text)}\s*$", re.I) if exact else re.compile(re.escape(text), re.I)
     async def _post_click_stabilize():
@@ -86,23 +85,19 @@ async def click_button_by_text_anywhere(page, text, exact=False, timeout_loop=30
     return False
 
 async def run():
-    send_tg("🚀 بدأت المحاولة. جاري تجهيز المتصفح...")
+    send_tg("🚀 بدأت المحاولة باستخدام Firefox + Stealth...")
     ext_path = await get_ext()
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
+        # استخدام Firefox بدلاً من Chromium
+        browser = await p.firefox.launch(
             headless=True,
             args=[
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--window-size=1280,720",
-                "--disable-popup-blocking"
+                "--window-size=1280,720"
             ]
         )
         
@@ -110,6 +105,20 @@ async def run():
             viewport={'width': 1280, 'height': 720},
             accept_downloads=True,
         )
+        
+        # تطبيق stealth عبر إزالة خصائص webdriver
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en']
+            });
+        """)
+        
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
         
@@ -130,9 +139,6 @@ async def run():
         
         # 2. النقر على "Sign in with Google"
         google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
-        if not google_clicked:
-            google_clicked = await click_button_by_text_anywhere(page, "G", exact=True, timeout_loop=5)
-        
         if google_clicked:
             send_tg("✅ تم النقر على Sign in with Google")
         else:
@@ -142,7 +148,7 @@ async def run():
         
         await asyncio.sleep(4)
         
-        # 3. انتظار صفحة الحسابات (قد تكون accounts.google.com)
+        # 3. انتظار صفحة الحسابات
         account_page = None
         for p in context.pages:
             if "accounts.google.com" in p.url:
@@ -156,37 +162,32 @@ async def run():
         else:
             send_tg("ℹ️ لم تظهر نافذة منفصلة.")
         
-        # 4. محاولة إدخال البريد الإلكتروني يدويًا (في حال عدم ظهور قائمة الحسابات)
+        # 4. محاولة إدخال البريد الإلكتروني
         try:
-            # انتظر حقل البريد الإلكتروني
             email_input = page.locator("input[type='email'], input[name='identifier'], #identifierId").first
             await email_input.wait_for(state="visible", timeout=10000)
             await email_input.fill(TARGET_EMAIL)
             send_tg(f"📧 تم إدخال البريد: {TARGET_EMAIL}")
             
-            # النقر على Next
             next_clicked = await click_button_by_text_anywhere(page, "Next", exact=True, timeout_loop=10)
             if next_clicked:
                 send_tg("✅ تم النقر على Next")
                 await asyncio.sleep(4)
                 
-                # بعد Next، قد يطلب كلمة مرور (إذا كانت الكوكيز منتهية)
                 try:
                     pass_input = page.locator("input[type='password']").first
                     await pass_input.wait_for(state="visible", timeout=5000)
-                    send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة.")
+                    send_tg("⚠️ تم طلب كلمة المرور! الكوكيز غير صالحة أو الحساب محمي.")
                     await page.screenshot(path="password_required.png")
                     send_tg("📸 مطلوب كلمة مرور", "password_required.png")
-                    # هنا يمكن إضافة منطق لإدخال كلمة المرور إذا أردت
                 except:
                     send_tg("✅ لم يُطلب كلمة مرور (تم التحقق تلقائياً).")
             else:
                 send_tg("⚠️ لم يتم العثور على زر Next")
         except Exception as e:
             send_tg(f"ℹ️ لم يظهر حقل البريد: {str(e)[:40]}")
-            # ربما ظهرت قائمة الحسابات مباشرة
+            # ربما ظهرت قائمة الحسابات
             try:
-                # محاولة اختيار حساب omarcora
                 accounts = page.locator('div[data-email], div[data-identifier]')
                 target = accounts.filter(has_text="omarcora").first
                 if await target.count() > 0:

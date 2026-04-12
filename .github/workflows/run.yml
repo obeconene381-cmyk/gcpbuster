@@ -1,9 +1,9 @@
 name: Google Skills Automation
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'
-  workflow_dispatch:
 
 jobs:
   run-automation:
@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update --fix-missing || true
           sudo apt-get install -y --no-install-recommends \
@@ -41,18 +41,22 @@ jobs:
       - name: Download & Extract Buster
         run: |
           wget -q -O buster.zip https://github.com/dessant/buster/archive/refs/heads/master.zip
-          unzip -q buster.zip  # ✅ فك في المجلد الحالي (ينتج buster-master/)
-          ls -la buster-master/  # التحقق
+          unzip -q buster.zip
+          ls -la  # التحقق من الاسم الصحيح
+          # إذا كان الاسم buster-main بدلاً من buster-master
+          if [ -d "buster-main" ]; then mv buster-main buster-master; fi
 
       - name: Run Automation Script
         run: python main.py
         env:
-          PYTHONUNBUFFERED: "1"
+          PYTHONUN_BUFFERED: "1"
 
       - name: Upload Screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: results
-          path: "*.png"
+          name: automation-results
+          path: |
+            *.png
+            *.jpg
           retention-days: 7

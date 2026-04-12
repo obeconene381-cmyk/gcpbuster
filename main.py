@@ -2,6 +2,7 @@ import asyncio
 import os
 import zipfile
 import requests
+import re
 from playwright.async_api import async_playwright
 
 # ========== إعدادات التيليجرام ==========
@@ -52,6 +53,60 @@ async def get_ext():
                 return os.path.abspath(r)
     return os.path.abspath(dest)
 
+# ========== دالة مساعدة للنقر على زر بالنص في أي إطار ==========
+async def click_button_by_text_anywhere(page, text, exact=True, timeout_loop=30, post_click_wait=3):
+    pattern = re.compile(rf"^\s*{re.escape(text)}\s*$", re.I) if exact else re.compile(re.escape(text), re.I)
+    async def _post_click_stabilize():
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=2000)
+        except:
+            pass
+        await asyncio.sleep(post_click_wait)
+
+    for _ in range(timeout_loop):
+        # البحث في الصفحة الرئيسية وجميع الإطارات
+        for target in [page] + list(page.frames):
+            try:
+                # البحث عن زر (button) أو رابط (a) أو أي عنصر له دور زر
+                locators = [
+                    target.get_by_role("button", name=pattern),
+                    target.get_by_role("link", name=pattern),
+                    target.locator(f"button:has-text('{text}')"),
+                    target.locator(f"a:has-text('{text}')"),
+                    target.locator(f"[role='button']:has-text('{text}')"),
+                ]
+                for loc in locators:
+                    for i in range(await loc.count()):
+                        btn = loc.nth(i)
+                        if await btn.is_visible() and await btn.is_enabled():
+                            await btn.scroll_into_view_if_needed(timeout=1000)
+                            await btn.click(timeout=3000, force=True)
+                            await _post_click_stabilize()
+                            return True
+            except:
+                pass
+        await asyncio.sleep(1)
+    return False
+
+# ========== دالة لانتظار واختيار حساب معين ==========
+async def select_account_by_email(page, email_substring, timeout_loop=30):
+    for _ in range(timeout_loop):
+        for target in [page] + list(page.frames):
+            try:
+                accounts = target.locator('div[data-email], div[data-identifier]')
+                for i in range(await accounts.count()):
+                    acc = accounts.nth(i)
+                    text = await acc.text_content()
+                    if email_substring.lower() in (text or "").lower():
+                        await acc.scroll_into_view_if_needed(timeout=1000)
+                        await acc.click(timeout=3000, force=True)
+                        await asyncio.sleep(3)
+                        return True
+            except:
+                pass
+        await asyncio.sleep(1)
+    return False
+
 async def run():
     send_tg("🚀 بدأت المحاولة. جاري تجهيز المتصفح...")
     ext_path = await get_ext()
@@ -69,16 +124,13 @@ async def run():
                 "--disable-blink-features=AutomationControlled",
                 "--disable-features=IsolateOrigins,site-per-process",
                 "--window-size=1280,720",
-                "--disable-popup-blocking"  # مهم: منع حظر النوافذ المنبثقة
+                "--disable-popup-blocking"
             ]
         )
         
-        # سياق مع السماح بكل النوافذ المنبثقة
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 720},
             accept_downloads=True,
-            # إعدادات إضافية لضمان عمل popups
-            permissions=['clipboard-read', 'clipboard-write'],
         )
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
@@ -90,118 +142,83 @@ async def run():
         await page.screenshot(path="before_signin.png")
         send_tg("📸 قبل تسجيل الدخول", "before_signin.png")
         
-        # ========== 1. النقر على Sign in في الأعلى ==========
-        signin_btn = page.locator("a:has-text('Sign in'), button:has-text('Sign in'), span:has-text('Sign in')").first
+        # 1. النقر على Sign in في الأعلى
+        signin_clicked = await click_button_by_text_anywhere(page, "Sign in", exact=True, timeout_loop=10)
+        if signin_clicked:
+            send_tg("✅ تم النقر على Sign in")
+            await asyncio.sleep(3)
+        else:
+            send_tg("ℹ️ زر Sign in غير موجود.")
         
-        if await signin_btn.count() > 0:
-            send_tg("🔘 وجدت زر Sign in، جاري النقر...")
-            await signin_btn.click()
+        # 2. النقر على "Sign in with Google" باستخدام الدالة القوية
+        google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=15)
+        if not google_clicked:
+            # محاولة بديلة: النقر على زر يحمل شعار G
+            google_clicked = await click_button_by_text_anywhere(page, "Sign in with Google", exact=False, timeout_loop=5)
+        
+        if google_clicked:
+            send_tg("✅ تم النقر على Sign in with Google")
+        else:
+            send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
+            await page.screenshot(path="no_google_btn.png")
+            send_tg("📸 صورة الصفحة", "no_google_btn.png")
+        
+        # 3. انتظار فتح نافذة منبثقة أو الانتقال لصفحة الحسابات
+        await asyncio.sleep(4)
+        # نبحث عن صفحة accounts.google.com ضمن context
+        account_page = None
+        for p in context.pages:
+            if "accounts.google.com" in p.url:
+                account_page = p
+                break
+        
+        if account_page:
+            send_tg(f"🪟 تم فتح صفحة الحسابات: {account_page.url[:60]}")
+            page = account_page
+            await page.wait_for_load_state("networkidle", timeout=30000)
+        else:
+            # ربما بقينا في نفس الصفحة ولكن تم تحميل iframe لتسجيل الدخول
+            send_tg("ℹ️ لم تظهر نافذة منفصلة، نبحث عن قائمة الحسابات في الصفحة الحالية")
+        
+        # 4. اختيار الحساب الذي يحتوي على "omarcora"
+        selected = await select_account_by_email(page, "omarcora", timeout_loop=20)
+        if selected:
+            send_tg("✅ تم اختيار حساب omarcora")
+            # انتظار اكتمال تسجيل الدخول
             await page.wait_for_load_state("networkidle", timeout=30000)
             await asyncio.sleep(3)
-            
-            # ========== 2. التعامل مع زر "Sign in with Google" والنافذة المنبثقة ==========
-            # نحدد الصفحة الحالية لنعرف إذا تم فتح نافذة جديدة
-            original_page = page
-            
-            # محاولة النقر على الزر باستخدام محددات متعددة
-            google_signin_selectors = [
-                "button:has-text('Sign in with Google')",
-                "a:has-text('Sign in with Google')",
-                "[role='button']:has-text('Sign in with Google')",
-                "div[role='button']:has-text('G')",  # بعض الأزرار تحوي فقط شعار G
-                ".nsm7Bb-HzV7m-LgbsSe",  # class لزر Google في بعض الصفحات
-            ]
-            
-            clicked = False
-            for selector in google_signin_selectors:
-                try:
-                    btn = page.locator(selector).first
-                    if await btn.count() > 0:
-                        await btn.click(timeout=5000)
-                        send_tg(f"✅ تم النقر على: {selector}")
-                        clicked = True
-                        break
-                except:
-                    continue
-            
-            if not clicked:
-                # محاولة أخيرة: التقاط صورة وتحليل يدوي
-                send_tg("⚠️ لم يتم العثور على زر Sign in with Google")
-                await page.screenshot(path="no_google_btn.png")
-                send_tg("📸 صورة الصفحة الحالية", "no_google_btn.png")
-            
-            # انتظار ظهور نافذة جديدة أو تغيير URL
-            await asyncio.sleep(3)
-            
-            # البحث عن صفحة جديدة (popup)
-            pages = context.pages
-            if len(pages) > 1:
-                # توجد نافذة منبثقة جديدة
-                new_page = pages[-1]
-                send_tg(f"🪟 نافذة جديدة ظهرت: {new_page.url[:50]}")
-                await new_page.wait_for_load_state("networkidle", timeout=30000)
-                page = new_page  # نجعل النافذة الجديدة هي النشطة
-            else:
-                # ربما انتقلنا في نفس الصفحة إلى accounts.google.com
-                await page.wait_for_load_state("networkidle", timeout=30000)
-                if "accounts.google.com" in page.url:
-                    send_tg("✅ انتقلنا إلى صفحة حسابات Google")
-            
-            # ========== 3. اختيار الحساب (omarcora) ==========
-            try:
-                # انتظر ظهور قائمة الحسابات (قد تكون في صفحة accounts.google.com)
-                await page.wait_for_selector('div[data-email], div[data-identifier]', timeout=20000)
-                accounts = page.locator('div[data-email], div[data-identifier]')
-                target_account = accounts.filter(has_text="omarcora").first
-                
-                if await target_account.count() > 0:
-                    send_tg("✅ وجدت حساب omarcora، جاري النقر...")
-                    await target_account.click()
-                    await page.wait_for_load_state("networkidle", timeout=30000)
-                    await asyncio.sleep(3)
-                    send_tg("✅ تم اختيار الحساب.")
-                else:
-                    send_tg("⚠️ لم يتم العثور على omarcora، التقاط قائمة الحسابات...")
-                    await page.screenshot(path="accounts_list.png")
-                    send_tg("📸 قائمة الحسابات المتاحة", "accounts_list.png")
-            except Exception as e:
-                send_tg(f"⚠️ لم تظهر قائمة الحسابات: {str(e)[:50]}")
-                # ربما تم تسجيل الدخول تلقائياً
-                pass
-            
-            # ========== 4. بعد تسجيل الدخول، يجب العودة لصفحة اللاب ==========
-            # إذا كنا في صفحة منبثقة، ننتظر إغلاقها أو نعود للصفحة الأصلية
-            await asyncio.sleep(3)
-            # إذا كانت الصفحة الحالية ليست skills.google، نرجع للصفحة الأصلية
-            if "skills.google" not in page.url:
-                # ابحث عن صفحة skills.google في context
-                for p in context.pages:
-                    if "skills.google" in p.url:
-                        page = p
-                        await page.bring_to_front()
-                        send_tg("🔄 عدنا إلى صفحة اللاب.")
-                        break
-                else:
-                    # إذا لم نجد، نفتح اللاب مجدداً
-                    send_tg("🔄 إعادة فتح صفحة اللاب...")
-                    page = original_page
-                    await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
-            
-            await page.screenshot(path="after_signin.png")
-            send_tg("📸 بعد تسجيل الدخول", "after_signin.png")
         else:
-            send_tg("ℹ️ زر Sign in غير موجود. ربما أنت مسجل الدخول مسبقاً.")
+            send_tg("⚠️ لم يتم العثور على حساب omarcora")
+            await page.screenshot(path="accounts_list.png")
+            send_tg("📸 قائمة الحسابات المتاحة", "accounts_list.png")
         
-        # ========== 5. الضغط على Start Lab ==========
-        try:
-            btn = page.locator("button:has-text('Start Lab'), button:has-text('بدء')").first
-            await btn.wait_for(state="visible", timeout=10000)
-            await btn.click()
-            send_tg("🔘 تم الضغط على بدء المهمة.")
-        except Exception:
-            send_tg("ℹ️ زر البدء غير موجود. قد يكون اللاب بدأ تلقائياً.")
+        # 5. العودة إلى صفحة اللاب
+        lab_page = None
+        for p in context.pages:
+            if "skills.google" in p.url and "sign_in" not in p.url:
+                lab_page = p
+                break
+        if lab_page:
+            page = lab_page
+            await page.bring_to_front()
+            send_tg("🔄 عدنا إلى صفحة اللاب")
+        else:
+            send_tg("🔄 إعادة فتح صفحة اللاب...")
+            await page.goto(LAB_URL, wait_until="networkidle", timeout=60000)
         
-        # ========== 6. معالجة الكابتشا ==========
+        await page.screenshot(path="after_signin.png")
+        send_tg("📸 بعد تسجيل الدخول", "after_signin.png")
+        
+        # 6. الضغط على Start Lab
+        start_clicked = await click_button_by_text_anywhere(page, "Start Lab", exact=False, timeout_loop=10)
+        if not start_clicked:
+            start_clicked = await click_button_by_text_anywhere(page, "بدء", exact=False, timeout_loop=5)
+        if start_clicked:
+            send_tg("🔘 تم الضغط على بدء المهمة")
+        else:
+            send_tg("ℹ️ زر البدء غير موجود")
+        
+        # 7. معالجة الكابتشا
         await asyncio.sleep(5)
         try:
             await page.wait_for_selector("iframe[src*='recaptcha']", timeout=10000)

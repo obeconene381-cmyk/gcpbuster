@@ -2,12 +2,6 @@ name: Google Skills Automation
 
 on:
   workflow_dispatch:
-    inputs:
-      lab_url:
-        description: 'رابط اللاب (Google Skills)'
-        required: true
-        type: string
-        default: 'https://www.skills.google/focuses/19146?parent=catalog'
 
 jobs:
   run-automation:
@@ -26,7 +20,7 @@ jobs:
       - name: Install Requirements
         run: |
           pip install playwright requests
-          playwright install chromium --with-deps
+          playwright install firefox --with-deps
 
       - name: Download Buster Extension
         run: |
@@ -35,8 +29,4 @@ jobs:
           fi
 
       - name: Run Playwright Script
-        env:
-          LAB_URL: ${{ github.event.inputs.lab_url }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py

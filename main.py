@@ -8,6 +8,7 @@ from playwright.async_api import async_playwright
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
+BUSTER_EXTENSION_URL = "https://chrome.google.com/webstore/detail/buster-captcha-solver-for/mpbjkejclgfgadiemmefgebjfooflfhl?hl=en"
 
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
@@ -41,7 +42,83 @@ async def get_ext():
             if "manifest.json" in f: return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# --- دالة الضغط على Start Lab (كما هي بدون تغيير) ---
+# --- تثبيت Buster من Chrome Web Store ---
+async def install_buster_from_store(page):
+    send_tg("🔧 جاري تثبيت Buster من Chrome Web Store...")
+
+    try:
+        await page.goto(BUSTER_EXTENSION_URL, timeout=60000, wait_until="domcontentloaded")
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(3)
+        send_tg("✅ تم فتح صفحة الإضافة")
+
+        # الضغط على "Add to Chrome"
+        clicked = False
+        try:
+            btn = page.get_by_role("button", name=re.compile(r"Add to Chrome", re.I))
+            if await btn.count() > 0:
+                await btn.first.click(force=True)
+                clicked = True
+                send_tg("✅ تم الضغط على 'Add to Chrome'")
+        except: pass
+
+        if not clicked:
+            try:
+                btn = page.locator('button:has-text("Add to Chrome")')
+                if await btn.count() > 0:
+                    await btn.first.click(force=True)
+                    clicked = True
+                    send_tg("✅ تم الضغط على 'Add to Chrome' (2)")
+            except: pass
+
+        if not clicked:
+            try:
+                await page.evaluate('document.querySelector("button").click()')
+                send_tg("✅ تم الضغط على 'Add to Chrome' (JS)")
+            except:
+                send_tg("❌ فشل الضغط على 'Add to Chrome'")
+                return False
+
+        await asyncio.sleep(3)
+
+        # الضغط على "Add extension"
+        send_tg("⏳ انتظار نافذة التأكيد...")
+        ext_clicked = False
+
+        try:
+            ext_btn = page.get_by_role("button", name=re.compile(r"Add extension", re.I))
+            if await ext_btn.count() > 0:
+                await ext_btn.first.click(force=True)
+                ext_clicked = True
+                send_tg("✅ تم الضغط على 'Add extension'")
+        except: pass
+
+        if not ext_clicked:
+            try:
+                ext_btn = page.locator('button:has-text("Add extension")')
+                if await ext_btn.count() > 0:
+                    await ext_btn.first.click(force=True)
+                    ext_clicked = True
+                    send_tg("✅ تم الضغط على 'Add extension' (2)")
+            except: pass
+
+        if not ext_clicked:
+            try:
+                await page.evaluate('document.querySelectorAll("button")[1].click()')
+                send_tg("✅ تم الضغط على 'Add extension' (JS)")
+            except:
+                pass
+
+        send_tg("⏳ انتظار التثبيت...")
+        await asyncio.sleep(10)
+        send_tg("✅ تم تثبيت Buster!")
+        return True
+
+    except Exception as e:
+        send_tg(f"❌ خطأ: {str(e)[:100]}")
+        return False
+
+# --- دالة Start Lab ---
 async def click_start_lab_button(page):
     pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
     for _ in range(60): 
@@ -58,7 +135,7 @@ async def click_start_lab_button(page):
         await asyncio.sleep(1)
     return False
 
-# --- دالة الضغط على الكابتشا (كما هي بدون تغيير) ---
+# --- دالة الكابتشا ---
 async def click_captcha_checkbox(page):
     send_tg("🤛 جاري البحث عن مربع الكابتشا...")
     try:
@@ -68,44 +145,34 @@ async def click_captcha_checkbox(page):
             frame_content = iframe.content_frame
             checkbox = frame_content.locator('.recaptcha-checkbox-border').first
             if await checkbox.count() > 0:
-                await checkbox.click(force=True, delay=150)
+                await checkbox.click(force=True)
                 send_tg("✅ تم الضغط على المربع بنجاح")
                 return True
-        send_tg("❌ لم يتم العثور على المربع.")
         return False
     except: return False
 
-# --- دالة التخطي (تحسين صيد الشخص الأصفر) ---
+# --- دالة Buster ---
 async def handle_buster_direct(page):
-    send_tg("🕵️ جاري البحث عن الشخص الأصفر داخل الفريم...")
+    send_tg("🕵️ جاري البحث عن الشخص الأصفر...")
     try:
-        # الوصول للفريم الذي يحتوي على تحدي الصور
         challenge_frame = page.frame_locator('iframe[title*="challenge"], iframe[src*="api2/bframe"]').first
-        
-        # الزر الأصفر يحمل ID solver-button، ننتظر ظهوره الفعلي
         buster_btn = challenge_frame.locator("#solver-button")
-        
-        # الانتظار حتى يصبح الزر مرئياً (زدنا الوقت لـ 15 ثانية لضمان الحقن)
         await buster_btn.wait_for(state="visible", timeout=15000)
-        
         await buster_btn.click(force=True)
-        send_tg("🎯 تم الضغط على الشخص الأصفر! جاري الحل...")
-        
-        # انتظار 8 ثواني لضمان انتهاء الإضافة من عملها
+        send_tg("🎯 تم الضغط على الشخص الأصفر!")
         await asyncio.sleep(8)
-        
-    except Exception as e:
-        send_tg("❌ الشخص الأصفر لم يظهر، قد تكون الإضافة لم تُحقن بشكل صحيح في هذا الفريم")
+    except:
+        send_tg("❌ الشخص الأصفر لم يظهر")
 
-# --- التشغيل الرئيسي ---
+# --- التشغيل ---
 async def run():
     send_tg("🚀 بدء المهمة...")
     ext_path = await get_ext()
-    
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            proxy=WORKING_PROXY, 
+            proxy=WORKING_PROXY,
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
@@ -113,42 +180,33 @@ async def run():
                 "--disable-blink-features=AutomationControlled"
             ]
         )
-        
+
         context = await browser.new_context(proxy=WORKING_PROXY)
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
 
         try:
+            # تثبيت Buster من المتجر أولاً
+            await install_buster_from_store(page)
+
+            # فتح صفحة اللاب
             send_tg("🌐 فتح صفحة اللاب...")
             await page.goto(LAB_URL, timeout=90000, wait_until="commit")
             await page.wait_for_load_state("domcontentloaded", timeout=30000)
-            
+
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
-                
-                # الضغط على المربع
                 await click_captcha_checkbox(page)
-                await asyncio.sleep(4) # وقت إضافي لظهور الصور
-                
-                # تخطي الكابتشا بالشخص الأصفر
+                await asyncio.sleep(4)
                 await handle_buster_direct(page)
-                
-                # لقطة شاشة للنتيجة
-                await page.screenshot(path="final_result.png", full_page=True)
-                send_tg("📸 النتيجة النهائية بعد محاولة التخطي:", "final_result.png")
-                
-                # فحص ظهور زر Credits
-                try:
-                    launch_btn = page.locator("text=Launch with 5 Credits").first
-                    if await launch_btn.count() > 0:
-                        send_tg("✅ نافذة Credits ظهرت بنجاح!")
-                except: pass
 
+                await page.screenshot(path="final_result.png", full_page=True)
+                send_tg("📸 النتيجة:", "final_result.png")
             else:
                 send_tg("❌ لم أجد زر Start Lab")
 
         except Exception as e:
-            send_tg(f"❌ خطأ عام: {str(e)[:100]}")
+            send_tg(f"❌ خطأ: {str(e)[:100]}")
         finally:
             await browser.close()
 

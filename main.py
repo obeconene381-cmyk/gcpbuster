@@ -2,7 +2,6 @@ import asyncio
 import os
 import zipfile
 import requests
-import traceback
 from playwright.async_api import async_playwright
 
 # إعدادات التلجرام
@@ -10,7 +9,6 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# الكوكيز تاعك (الصحاح)
 MY_COOKIES = [
     {"domain": ".google.com", "name": "__Secure-1PAPISID", "value": "UuI95bhHmuJTfRbY/AdsqK54C5qNUrOhdv", "path": "/", "secure": True},
     {"domain": ".google.com", "name": "__Secure-1PSID", "value": "g.a0008Ai6P4D9VxUMsensK1KpzeOc24d8VoHzO9H99BWH0mlOD6cmjs-BEg_YPf-HLWwDZdCefAACgYKAUISARMSFQHGX2MiwOJS0q3XWAy99YYvXGhGkhoVAUF8yKqoLEMDT5_IcXJDsfEymmDD0076", "path": "/", "secure": True},
@@ -42,58 +40,70 @@ async def get_ext():
     return os.path.abspath(dest)
 
 async def run():
-    send_tg("🔥 بدأ العمل! راني نوجد في المتصفح...")
+    send_tg("🚀 بدأت المحاولة الجديدة. جاري تشغيل المتصفح...")
     ext_path = await get_ext()
     
     async with async_playwright() as p:
-        # تشغيل المتصفح بأوامر تمنع أي تعليق
-        browser = await p.chromium.launch_persistent_context(
-            "user_data", headless=False,
-            args=[
-                f"--disable-extensions-except={ext_path}",
-                f"--load-extension={ext_path}",
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage"
-            ]
-        )
-        await browser.add_cookies(MY_COOKIES)
-        page = browser.pages[0]
-        page.set_default_timeout(60000)
-
         try:
+            # زيادة وقت الانتظار لفتح المتصفح لـ 5 دقائق لتجنب الـ Timeout
+            browser = await p.chromium.launch_persistent_context(
+                "./user_data", 
+                headless=False,
+                slow_mo=500, # إبطاء العمليات قليلاً لضمان الاستقرار
+                args=[
+                    f"--disable-extensions-except={ext_path}",
+                    f"--load-extension={ext_path}",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--no-first-run",
+                    "--no-zygote"
+                ],
+                timeout=300000 # 5 دقائق
+            )
+            
+            await browser.add_cookies(MY_COOKIES)
+            page = browser.pages[0]
+            
             send_tg("🌐 راني نفتح في صفحة اللاب...")
-            await page.goto(LAB_URL, wait_until="networkidle")
+            await page.goto(LAB_URL, wait_until="networkidle", timeout=90000)
             await asyncio.sleep(5)
-            await page.screenshot(path="login.png")
-            send_tg("📸 دخلت! شوف التصويرة إذا راني مسجل الدخول.", "login.png")
+            
+            await page.screenshot(path="status.png")
+            send_tg("📸 راني داخل الصفحة. شوف السكرين شوت:", "status.png")
 
-            # الضغط على زر البدء
+            # الضغط على زر Start Lab
             btn = page.locator("button:has-text('Start Lab'), button:has-text('بدء')").first
-            await btn.wait_for(state="visible")
+            await btn.wait_for(state="visible", timeout=30000)
             await btn.click()
-            send_tg("🔘 ضغطت على Start Lab! جاري البحث عن الكبتشا...")
-            await asyncio.sleep(5)
+            send_tg("🔘 تم الضغط على زر البدء. جاري مراقبة الكبتشا...")
 
-            # التعامل مع الكبتشا
+            # حل الكبتشا
+            await asyncio.sleep(5)
             for f in page.frames:
                 if "api2/anchor" in f.url:
                     await f.click(".recaptcha-checkbox-border")
                     await asyncio.sleep(4)
                 if "api2/bframe" in f.url:
-                    send_tg("🤖 لقيت الكبتشا! راني نخدم بـ Buster درك...")
-                    await f.click("#solver-button")
+                    send_tg("🤖 لقيت الكبتشا! راني نفعّل في Buster...")
+                    await f.locator("#solver-button").click()
                     await asyncio.sleep(15)
 
             await asyncio.sleep(10)
             await page.screenshot(path="final.png")
-            send_tg(f"✅ كملت! الرابط: {page.url}", "final.png")
+            send_tg(f"✅ المهمة انتهت! الرابط الحالي:\n{page.url}", "final.png")
 
         except Exception as e:
-            await page.screenshot(path="err.png")
-            send_tg(f"❌ حبست هنا: {str(e)[:150]}", "err.png")
+            # تصوير الشاشة عند حدوث أي خطأ لمعرفة السبب
+            try:
+                await page.screenshot(path="error.png")
+                send_tg(f"❌ صرا مشكل: {str(e)[:100]}", "error.png")
+            except:
+                send_tg(f"❌ صرا مشكل والمتصفح ما قدرش يصور: {str(e)[:100]}")
         finally:
-            await browser.close()
+            try: await browser.close()
+            except: pass
 
 if __name__ == "__main__":
     asyncio.run(run())

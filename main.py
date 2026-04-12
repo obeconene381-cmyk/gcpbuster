@@ -6,9 +6,6 @@ import re
 import tempfile
 from playwright.async_api import async_playwright
 
-# إسكات تنبيهات النظام
-os.environ["DBUS_SESSION_BUS_ADDRESS"] = "/dev/null"
-
 # إعدادات التيليجرام
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
@@ -16,7 +13,6 @@ CHAT_ID = "8092953314"
 BASE_URL = "https://www.skills.google/"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# الكوكيز الخاصة بك (تأكد أنها محدثة من صفحة Dashboard)
 MY_COOKIES = [
     {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
     {"domain": ".skills.google", "name": "_ga_2X30ZRBDSG", "value": "GS2.1.s1775996404$o97$g1$t1775996563$j32$l0$h0", "path": "/"},
@@ -45,78 +41,72 @@ async def get_ext():
             if "manifest.json" in f: return os.path.abspath(r)
     return os.path.abspath(dest)
 
-# دالة مطورة جداً للبحث عن الزر باستخدام CSS والنص معاً
-async def find_and_click_start(page, timeout=40):
-    # محددات CSS خاصة بموقع Google Skills للزر "Start Lab"
-    selectors = [
-        "button.ql-button", 
-        "button:has-text('Start Lab')", 
-        "button:has-text('بدء')",
-        ".js-start-lab-button",
-        "text=Start Lab"
-    ]
-    for _ in range(timeout):
-        for target in [page] + page.frames:
-            for selector in selectors:
-                try:
-                    btn = target.locator(selector).first
-                    if await btn.is_visible() and await btn.is_enabled():
-                        await btn.scroll_into_view_if_needed()
-                        await btn.click(force=True, timeout=5000)
-                        return True
-                except: continue
-        await asyncio.sleep(1)
-    return False
-
 async def run():
-    send_tg("⚙️ جاري بدء تنفيذ السكريبت بالبحث العميق...")
+    send_tg("⚙️ جاري بدء المهمة وإعداد الصور...")
     ext_path = await get_ext()
     temp_dir = tempfile.mkdtemp()
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
-        )
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
         context = await browser.new_context(viewport={'width': 1280, 'height': 720})
         await context.add_cookies(MY_COOKIES)
         page = await context.new_page()
 
         try:
-            # الدخول للموقع الرئيسي لتثبيت الجلسة
             await page.goto(BASE_URL, wait_until="networkidle")
             await asyncio.sleep(4)
-            
-            # الانتقال لصفحة اللاب
             await page.goto(LAB_URL, wait_until="networkidle")
-            await asyncio.sleep(5)
+            await asyncio.sleep(6)
             
-            # محاولة النقر باستخدام المحددات المطورة
-            clicked = await find_and_click_start(page)
+            # صورة 1: صفحة اللاب عند الدخول
+            await page.screenshot(path="step1.png")
+            send_tg("📸 1. تم فتح صفحة اللاب بنجاح.", "step1.png")
+
+            # محاولة النقر على الزر بمحددات متعددة
+            send_tg("🔍 جاري البحث عن زر Start Lab...")
             
+            # قائمة المحددات (Selectors) الأكثر دقة
+            selectors = ["button.ql-button", "button:has-text('Start Lab')", ".js-start-lab-button"]
+            clicked = False
+            
+            for selector in selectors:
+                for target in [page] + page.frames:
+                    try:
+                        btn = target.locator(selector).first
+                        if await btn.is_visible():
+                            await btn.click(force=True)
+                            clicked = True
+                            break
+                    except: continue
+                if clicked: break
+
             if clicked:
-                send_tg("✅ تم العثور على زر البدء والنقر عليه بنجاح.")
+                send_tg("✅ تم العثور على الزر والضغط عليه.")
                 await asyncio.sleep(5)
                 
-                # معالجة الكبتشا
+                # صورة 2: بعد الضغط (هل ظهرت الكبتشا؟)
+                await page.screenshot(path="after_click.png")
+                send_tg("📸 2. الحالة بعد الضغط على الزر.", "after_click.png")
+
+                # حل الكبتشا
                 for f in page.frames:
                     if "api2/anchor" in f.url:
                         await f.click(".recaptcha-checkbox-border")
-                        await asyncio.sleep(4)
+                        await asyncio.sleep(3)
                     if "api2/bframe" in f.url:
-                        send_tg("🤖 جاري حل الكبتشا بواسطة Buster...")
+                        send_tg("🤖 تم اكتشاف الكبتشا، جاري الحل...")
                         await f.locator("#solver-button").click()
                         await asyncio.sleep(15)
             else:
-                await page.screenshot(path="not_found.png", full_page=True)
-                send_tg("❌ فشل البحث عن الزر رغم وجوده في الصورة. سأحاول تصوير الصفحة كاملة للفحص.", "not_found.png")
+                await page.screenshot(path="failed.png")
+                send_tg("❌ لم أتمكن من العثور على الزر برمجياً رغم وجوده في الصورة.", "failed.png")
 
             await asyncio.sleep(10)
             await page.screenshot(path="final.png")
-            send_tg(f"🏁 اكتمال المهمة. الرابط الحالي:\n{page.url}", "final.png")
+            send_tg(f"🏁 المهمة انتهت. الرابط الحالي:\n{page.url}", "final.png")
 
         except Exception as e:
-            send_tg(f"❌ خطأ تقني: {str(e)[:200]}")
+            send_tg(f"❌ خطأ: {str(e)[:200]}")
         finally:
             await browser.close()
 

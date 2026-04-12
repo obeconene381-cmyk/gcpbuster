@@ -44,12 +44,12 @@ async def run():
     ext_path = await get_ext()
     
     async with async_playwright() as p:
+        browser = None
         try:
-            # زيادة وقت الانتظار لفتح المتصفح لـ 5 دقائق لتجنب الـ Timeout
-            browser = await p.chromium.launch_persistent_context(
-                "./user_data", 
+            # تشغيل المتصفح العادي (وليس Persistent Context)
+            browser = await p.chromium.launch(
                 headless=False,
-                slow_mo=500, # إبطاء العمليات قليلاً لضمان الاستقرار
+                slow_mo=500,
                 args=[
                     f"--disable-extensions-except={ext_path}",
                     f"--load-extension={ext_path}",
@@ -58,13 +58,15 @@ async def run():
                     "--disable-gpu",
                     "--disable-dev-shm-usage",
                     "--no-first-run",
-                    "--no-zygote"
+                    "--disable-blink-features=AutomationControlled"
                 ],
-                timeout=300000 # 5 دقائق
+                timeout=300000  # 5 دقائق لبدء التشغيل
             )
             
-            await browser.add_cookies(MY_COOKIES)
-            page = browser.pages[0]
+            # إنشاء سياق جديد وإضافة الكوكيز
+            context = await browser.new_context()
+            await context.add_cookies(MY_COOKIES)
+            page = await context.new_page()
             
             send_tg("🌐 راني نفتح في صفحة اللاب...")
             await page.goto(LAB_URL, wait_until="networkidle", timeout=90000)
@@ -79,15 +81,15 @@ async def run():
             await btn.click()
             send_tg("🔘 تم الضغط على زر البدء. جاري مراقبة الكبتشا...")
 
-            # حل الكبتشا
+            # حل الكبتشا باستخدام Buster
             await asyncio.sleep(5)
-            for f in page.frames:
-                if "api2/anchor" in f.url:
-                    await f.click(".recaptcha-checkbox-border")
+            for frame in page.frames:
+                if "api2/anchor" in frame.url:
+                    await frame.click(".recaptcha-checkbox-border")
                     await asyncio.sleep(4)
-                if "api2/bframe" in f.url:
+                if "api2/bframe" in frame.url:
                     send_tg("🤖 لقيت الكبتشا! راني نفعّل في Buster...")
-                    await f.locator("#solver-button").click()
+                    await frame.locator("#solver-button").click()
                     await asyncio.sleep(15)
 
             await asyncio.sleep(10)
@@ -95,15 +97,19 @@ async def run():
             send_tg(f"✅ المهمة انتهت! الرابط الحالي:\n{page.url}", "final.png")
 
         except Exception as e:
-            # تصوير الشاشة عند حدوث أي خطأ لمعرفة السبب
+            # التقاط صورة خطأ إن أمكن
             try:
-                await page.screenshot(path="error.png")
-                send_tg(f"❌ صرا مشكل: {str(e)[:100]}", "error.png")
+                if browser and page:
+                    await page.screenshot(path="error.png")
+                    send_tg(f"❌ صرا مشكل: {str(e)[:100]}", "error.png")
+                else:
+                    send_tg(f"❌ فشل قبل فتح الصفحة: {str(e)[:100]}")
             except:
                 send_tg(f"❌ صرا مشكل والمتصفح ما قدرش يصور: {str(e)[:100]}")
         finally:
-            try: await browser.close()
-            except: pass
+            if browser:
+                try: await browser.close()
+                except: pass
 
 if __name__ == "__main__":
     asyncio.run(run())

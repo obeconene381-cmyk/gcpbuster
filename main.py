@@ -130,23 +130,53 @@ async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     await asyncio.sleep(5)
 
-    # البحث في جميع الـ frames المتاحة في الصفحة مباشرة
-    for attempt in range(10):
-        for frame in page.frames:
+    # الطريقة 1: البحث عن iframe بـ name يبدأ بـ c- (bframe)
+    for attempt in range(15):
+        try:
+            all_iframes = await page.locator('iframe').all()
+            for iframe_el in all_iframes:
+                try:
+                    name = await iframe_el.get_attribute('name') or ''
+                    src = await iframe_el.get_attribute('src') or ''
+                    if (name.startswith('c-') and 'recaptcha' in src) or 'bframe' in src:
+                        frame = await iframe_el.content_frame()
+                        if frame:
+                            btn = frame.locator('#solver-button')
+                            if await btn.count() > 0:
+                                await btn.wait_for(state='visible', timeout=3000)
+                                await btn.click(force=True)
+                                send_tg("🎯 تم الضغط على الشخص الأصفر!")
+                                await asyncio.sleep(8)
+                                return True
+                except:
+                    continue
+        except:
+            pass
+        await asyncio.sleep(1)
+
+    # الطريقة 2: النقر على إحداثيات الشخص الأصفر مباشرة
+    try:
+        send_tg("🔄 محاولة بالإحداثيات المباشرة...")
+        all_iframes = await page.locator('iframe').all()
+        for iframe_el in all_iframes:
             try:
-                url = frame.url
-                # الـ bframe من recaptcha.net هو الذي يحتوي على زر Buster
-                if "bframe" in url or "recaptcha.net" in url or "recaptcha.com" in url:
-                    buster_btn = frame.locator("#solver-button")
-                    count = await buster_btn.count()
-                    if count > 0 and await buster_btn.is_visible():
-                        await buster_btn.click(force=True)
-                        send_tg("🎯 تم الضغط على الشخص الأصفر!")
+                src = await iframe_el.get_attribute('src') or ''
+                name = await iframe_el.get_attribute('name') or ''
+                if 'bframe' in src or name.startswith('c-'):
+                    box = await iframe_el.bounding_box()
+                    if box:
+                        x = box['x'] + 40
+                        y = box['y'] + box['height'] - 30
+                        await page.mouse.move(x, y, steps=5)
+                        await asyncio.sleep(0.2)
+                        await page.mouse.click(x, y)
+                        send_tg("🎯 تم الضغط بالإحداثيات على الشخص الأصفر!")
                         await asyncio.sleep(8)
                         return True
             except:
                 continue
-        await asyncio.sleep(1)
+    except:
+        pass
 
     send_tg("❌ لم يتم إيجاد الشخص الأصفر")
     return False

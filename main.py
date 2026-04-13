@@ -128,16 +128,45 @@ async def click_captcha_checkbox(page):
 
 async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
+    await asyncio.sleep(5)
+
+    # قائمة بكل الـ selectors المحتملة للـ iframe الذي يحتوي على زر Buster
+    iframe_selectors = [
+        'iframe[src*="bframe"]',
+        'iframe[title*="challenge"]',
+        'iframe[src*="recaptcha"][src*="bframe"]',
+        'iframe[name*="c-"]',
+    ]
+
+    for sel in iframe_selectors:
+        try:
+            frame = page.frame_locator(sel).first
+            buster_btn = frame.locator("#solver-button")
+            await buster_btn.wait_for(state="visible", timeout=8000)
+            await buster_btn.click(force=True)
+            send_tg("🎯 تم الضغط على الشخص الأصفر!")
+            await asyncio.sleep(8)
+            return True
+        except:
+            continue
+
+    # محاولة أخيرة: البحث في كل الـ frames المتاحة في الصفحة
     try:
-        await asyncio.sleep(5)
-        challenge_frame = page.frame_locator('iframe[title*="challenge"]').first
-        buster_btn = challenge_frame.locator("#solver-button")
-        await buster_btn.wait_for(state="visible", timeout=15000)
-        await buster_btn.click(force=True)
-        send_tg("🎯 تم الضغط على الشخص الأصفر!")
-        await asyncio.sleep(8)
-        return True
-    except: return False
+        for frame in page.frames:
+            try:
+                buster_btn = frame.locator("#solver-button")
+                if await buster_btn.count() > 0 and await buster_btn.is_visible():
+                    await buster_btn.click(force=True)
+                    send_tg("🎯 تم الضغط على الشخص الأصفر (frame scan)!")
+                    await asyncio.sleep(8)
+                    return True
+            except:
+                continue
+    except:
+        pass
+
+    send_tg("❌ لم يتم إيجاد الشخص الأصفر")
+    return False
 
 # ===============================================
 

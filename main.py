@@ -106,18 +106,18 @@ async def click_captcha_checkbox(page):
         except: continue
     return False
 
-# --- تعديل منطق البحث عن الشخص الأصفر (Buster) ليكون أكثر دقة ---
+# --- تعديل منطق البحث عن الشخص الأصفر (Buster) فقط كما طلبت ---
 async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     try:
-        # الانتظار الكافي لظهور إطار التحدي (Challenge Iframe)
-        await asyncio.sleep(5)
+        # الانتظار لظهور إطار التحدي
+        await asyncio.sleep(6)
         
         target_btn = None
-        # البحث في جميع الإطارات (Frames) المفتوحة في الصفحة عن زر Buster
+        # البحث العميق في جميع الإطارات (Frames) عن زر Buster
         for frame in page.frames:
             try:
-                # محاولة تحديد زر Buster داخل كل إطار
+                # زر Buster دائماً ما يحمل المعرف solver-button
                 btn = frame.locator("#solver-button")
                 if await btn.count() > 0:
                     target_btn = btn
@@ -126,28 +126,26 @@ async def handle_buster(page):
                 continue
         
         if target_btn:
-            # الانتظار ليكون الزر قابلاً للتفاعل
             await target_btn.wait_for(state="visible", timeout=10000)
-            
-            # استخدام دالة النقر البشري الخاصة بك
+            # استخدام دالة النقر البشري الأصلية الخاصة بك
             success = await human_click(page, target_btn)
             if success:
                 send_tg("🎯 تم الضغط على الشخص الأصفر بنجاح!")
             else:
                 await target_btn.click(force=True)
                 send_tg("🎯 تم الضغط على الشخص الأصفر (نقر إجباري)!")
-                
+            
             await asyncio.sleep(8) # انتظار حل الكابتشا
             return True
         else:
-            send_tg("❌ لم يتم العثور على زر Buster في أي إطار (Frame)")
+            send_tg("❌ لم يتم العثور على زر Buster في أي إطار.")
             await page.screenshot(path="buster_not_found.png")
-            send_tg("📸 صورة للتحقق من الحالة:", "buster_not_found.png")
+            send_tg("📸 صورة للتحقق:", "buster_not_found.png")
             return False
     except Exception as e:
-        send_tg(f"❌ خطأ في التعامل مع Buster: {str(e)[:100]}")
+        send_tg(f"❌ خطأ في دالة Buster: {str(e)[:100]}")
         return False
-# -----------------------------------------------------------------
+# -------------------------------------------------------------
 
 async def run():
     send_tg("🚀 بدء المهمة...")
@@ -167,6 +165,7 @@ async def run():
             await context.add_cookies(MY_COOKIES)
             await page.goto(LAB_URL, timeout=60000)
             await asyncio.sleep(4)
+            # إغلاق نافذة الـ Credits إذا ظهرت
             await dismiss_credits_modal(page)
             
             if await click_start_lab_button(page):

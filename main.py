@@ -3,12 +3,15 @@ import os
 import zipfile
 import requests
 import re
+import shutil
 from playwright.async_api import async_playwright
 
 # --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
+# رابط الإضافة المباشر (رابط GitHub الرسمي)
+BUSTER_ZIP_URL = "https://github.com/dessant/buster/archive/refs/heads/master.zip"
 
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
@@ -34,14 +37,37 @@ def send_tg(msg, img=None):
     except Exception as e:
         print(f"TG Error: {e}")
 
-async def get_buster_path():
-    """البحث الديناميكي عن مجلد Buster بالبحث عن ملف manifest.json"""
-    for root, dirs, files in os.walk(os.getcwd()):
-        if "manifest.json" in files:
-            return os.path.abspath(root)
-    return None
+async def setup_buster():
+    """تحميل وفك ضغط الإضافة برمجياً لضمان الدقة"""
+    target_dir = os.path.join(os.getcwd(), "buster_auto")
+    zip_path = "buster_temp.zip"
+    
+    try:
+        send_tg("📥 جاري تحميل الإضافة من GitHub...")
+        response = requests.get(BUSTER_ZIP_URL)
+        with open(zip_path, "wb") as f:
+            f.write(response.content)
+            
+        if os.path.exists(target_dir):
+            shutil.rmtree(target_dir)
+            
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(target_dir)
+        
+        os.remove(zip_path)
+        
+        # البحث عن ملف manifest.json داخل المجلدات المفكوكة
+        for root, dirs, files in os.walk(target_dir):
+            if "manifest.json" in files:
+                send_tg(f"✅ تم تجهيز الإضافة بنجاح في: {root}")
+                return os.path.abspath(root)
+                
+        return None
+    except Exception as e:
+        send_tg(f"❌ فشل تجهيز الإضافة: {str(e)}")
+        return None
 
-# --- دوال الضغط بقيت كما هي دون أي تعديل ---
+# --- دوال الضغط (بدون أي تعديل كما طلبت) ---
 async def human_click(page, locator):
     try:
         await locator.scroll_into_view_if_needed()
@@ -78,7 +104,6 @@ async def click_start_lab_button(page):
                     return True
         except:
             pass
-        
         for frame in page.frames:
             try:
                 btns = frame.get_by_role("button", name=pattern)
@@ -88,8 +113,7 @@ async def click_start_lab_button(page):
                         await b.click(force=True)
                         send_tg("✅ تم النقر على Start Lab (iframe)")
                         return True
-            except:
-                continue
+            except: continue
         await asyncio.sleep(1)
     return False
 
@@ -98,7 +122,6 @@ async def click_captcha_checkbox(page):
     try:
         await asyncio.sleep(3)
         iframes = await page.locator('iframe[title*="reCAPTCHA"], iframe[src*="recaptcha"]').all()
-        
         for iframe in iframes:
             try:
                 frame_content = iframe.content_frame
@@ -108,11 +131,9 @@ async def click_captcha_checkbox(page):
                     send_tg("✅ تم الضغط على المربع")
                     await asyncio.sleep(2)
                     return True
-            except:
-                continue
+            except: continue
         return False
-    except:
-        return False
+    except: return False
 
 async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
@@ -120,7 +141,6 @@ async def handle_buster(page):
         await asyncio.sleep(5)
         challenge_frame = page.frame_locator('iframe[title*="challenge"], iframe[src*="api2/bframe"]').first
         buster_btn = challenge_frame.locator("#solver-button")
-        
         await buster_btn.wait_for(state="visible", timeout=20000)
         await buster_btn.click(force=True)
         send_tg("🎯 تم الضغط على الشخص الأصفر!")
@@ -129,31 +149,29 @@ async def handle_buster(page):
     except Exception as e:
         send_tg(f"❌ الشخص الأصفر لم يظهر: {str(e)[:100]}")
         return False
-# -----------------------------------------------
 
+# --- المهمة الرئيسية ---
 async def run():
     send_tg("🚀 بدء المهمة...")
     
-    ext_path = await get_buster_path()
+    # 1. تحميل وتجهيز الإضافة تلقائياً
+    ext_path = await setup_buster()
     if not ext_path:
-        send_tg("❌ لم يتم العثور على ملفات إضافة Buster (لم يتم إيجاد manifest.json)")
+        send_tg("❌ فشل العثور على manifest.json بعد التحميل الذاتي")
         return
     
-    send_tg(f"📂 تم إيجاد الإضافة بنجاح في: {ext_path}")
-    
     async with async_playwright() as p:
-        # ملاحظة هامة: يجب أن يكون headless=False مع استخدام --headless=new لتعمل الإضافات
+        # تشغيل المتصفح بوضع headless=False + --headless=new للسماح بحقن الإضافات
         context = await p.chromium.launch_persistent_context(
             "/tmp/chrome_profile",
-            headless=False,  # تم التعديل هنا لضمان عمل الإضافة
+            headless=False,
             proxy=WORKING_PROXY,
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
-                "--headless=new", # تفعيل وضع headless الداعم للإضافات
+                "--headless=new",
                 "--no-sandbox",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-dev-shm-usage"
+                "--disable-blink-features=AutomationControlled"
             ],
             viewport={'width': 1280, 'height': 720}
         )
@@ -163,43 +181,32 @@ async def run():
         try:
             await context.add_cookies(MY_COOKIES)
             
-            # --- التأكد من عمل الإضافة قبل الدخول للاب ---
-            send_tg("🔍 جاري فحص صفحة الإضافات للتأكد من تحميل Buster...")
+            # 2. التأكد من أن الإضافة تعمل برؤية صفحة الإضافات
             await page.goto("chrome://extensions/")
             await asyncio.sleep(2)
-            await page.screenshot(path="extensions_check.png", full_page=True)
-            send_tg("📸 صورة لصفحة الإضافات للتأكد:", "extensions_check.png")
-            # ----------------------------------------------
+            await page.screenshot(path="ext_status.png")
+            send_tg("🧐 حالة الإضافات في المتصفح:", "ext_status.png")
             
+            # 3. الدخول للاب
             send_tg("🌐 فتح اللاب...")
-            await page.goto(LAB_URL, timeout=90000, wait_until="domcontentloaded")
-            await page.wait_for_load_state("networkidle", timeout=30000)
+            await page.goto(LAB_URL, timeout=90000)
+            await page.wait_for_load_state("networkidle")
             
-            await page.screenshot(path="lab_loaded.png", full_page=True)
-            send_tg("📸 تم تحميل اللاب", "lab_loaded.png")
-
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
                 if await click_captcha_checkbox(page):
                     await asyncio.sleep(4)
                     await handle_buster(page)
-                    
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
                     await page.screenshot(path="final.png", full_page=True)
-                    send_tg("📸 النتيجة:", "final.png")
+                    send_tg("📸 النتيجة النهائية:", "final.png")
                 else:
-                    await page.screenshot(path="captcha_fail.png", full_page=True)
-                    send_tg("❌ فشل الكابتشا:", "captcha_fail.png")
+                    send_tg("❌ لم يظهر مربع الكابتشا")
             else:
-                send_tg("❌ لم يتم العثور على Start Lab")
+                send_tg("❌ زر Start Lab غير موجود")
 
         except Exception as e:
-            send_tg(f"❌ خطأ: {str(e)[:200]}")
-            try:
-                await page.screenshot(path="error.png", full_page=True)
-                send_tg("📸 خطأ:", "error.png")
-            except:
-                pass
+            send_tg(f"❌ خطأ: {str(e)[:150]}")
         finally:
             await context.close()
 

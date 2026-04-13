@@ -140,15 +140,20 @@ async def handle_buster(page):
                     if name.startswith('a-') and 'recaptcha' in src:
                         box = await iframe_el.bounding_box()
                         if box and box['width'] > 0 and box['height'] > 0 and box['y'] > 0:
-                            # الشخص الأصفر y=589 في شاشة 720px
-                            # anchor iframe يبدأ عند y=95 تقريبا وارتفاعه 74px
-                            # إذن الشخص الأصفر = y_anchor + 494
                             buster_x = box['x'] + 45
-                            buster_y = box['y'] + 494
+                            buster_y = box['y'] + 536
+                            # رسم مربع أحمر على مكان الضغط
+                            await page.evaluate(f"""
+                                var d = document.createElement('div');
+                                d.style.cssText = 'position:fixed;left:{buster_x-15}px;top:{buster_y-15}px;width:30px;height:30px;background:red;border:3px solid yellow;z-index:999999;border-radius:50%;';
+                                document.body.appendChild(d);
+                            """)
+                            await asyncio.sleep(0.5)
+                            await page.screenshot(path="buster_target.png")
+                            send_tg(f"🎯 سأضغط عند {buster_x:.0f},{buster_y:.0f} (anchor y={box['y']:.0f})", "buster_target.png")
                             await page.mouse.move(buster_x, buster_y, steps=5)
                             await asyncio.sleep(0.3)
                             await page.mouse.click(buster_x, buster_y)
-                            send_tg(f"🎯 تم الضغط على الشخص الأصفر عند {buster_x:.0f},{buster_y:.0f}!")
                             await asyncio.sleep(10)
                             return True
                 except:

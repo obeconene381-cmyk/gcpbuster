@@ -11,7 +11,7 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# النسخة الجاهزة للكروم 
+# النسخة الجاهزة للكروم (Compiled Release)
 BUSTER_COMPILED_URL = "https://github.com/dessant/buster/releases/download/v3.1.0/buster_captcha_solver_for_humans-3.1.0-chrome.zip"
 
 WORKING_PROXY = {
@@ -39,20 +39,16 @@ async def setup_compiled_buster():
     if os.path.exists(ext_dir): shutil.rmtree(ext_dir)
     os.makedirs(ext_dir)
     zip_path = "buster_ready.zip"
-    
     try:
         send_tg("📥 جاري تحميل النسخة الرسمية الجاهزة للإضافة...")
         r = requests.get(BUSTER_COMPILED_URL, timeout=30)
         with open(zip_path, "wb") as f: f.write(r.content)
-        
-        with zipfile.ZipFile(zip_path, 'r') as z: 
-            z.extractall(ext_dir)
-            
+        with zipfile.ZipFile(zip_path, 'r') as z: z.extractall(ext_dir)
         os.remove(zip_path)
         send_tg(f"✅ تم تجهيز الإضافة الجاهزة في المسار: {ext_dir}")
         return ext_dir
     except Exception as e:
-        send_tg(f"❌ فشل تحميل الإضافة الجاهزة: {e}")
+        send_tg(f"❌ فشل تحميل الإضافة: {e}")
         return None
 
 async def human_click(page, locator):
@@ -76,18 +72,10 @@ async def dismiss_credits_modal(page):
         btn = page.get_by_role("button", name=re.compile(r"Dismiss", re.I))
         if await btn.count() > 0 and await btn.first.is_visible():
             await btn.first.click()
-            send_tg("✅ تم العثور على نافذة Credits Expiring وإغلاقها.")
-            await asyncio.sleep(2)
-            return True
-            
-        text_btn = page.locator("text=Dismiss")
-        if await text_btn.count() > 0 and await text_btn.first.is_visible():
-            await text_btn.first.click()
             send_tg("✅ تم إغلاق نافذة Credits Expiring.")
             await asyncio.sleep(2)
             return True
-    except Exception as e:
-        pass
+    except: pass
     return False
 
 async def click_start_lab_button(page):
@@ -118,35 +106,51 @@ async def click_captcha_checkbox(page):
         except: continue
     return False
 
-# --- التعديل هنا فقط لضمان النقر على الشخص الأصفر ---
+# --- تعديل منطق البحث عن الشخص الأصفر (Buster) ليكون أكثر دقة ---
 async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     try:
-        await asyncio.sleep(4)
-        # نستخدم الرابط الداخلي الثابت (bframe) لأنه أدق من الـ title
-        challenge_frame = page.frame_locator('iframe[src*="bframe"]').first
-        buster_btn = challenge_frame.locator("#solver-button")
+        # الانتظار الكافي لظهور إطار التحدي (Challenge Iframe)
+        await asyncio.sleep(5)
         
-        await buster_btn.wait_for(state="visible", timeout=15000)
+        target_btn = None
+        # البحث في جميع الإطارات (Frames) المفتوحة في الصفحة عن زر Buster
+        for frame in page.frames:
+            try:
+                # محاولة تحديد زر Buster داخل كل إطار
+                btn = frame.locator("#solver-button")
+                if await btn.count() > 0:
+                    target_btn = btn
+                    break
+            except:
+                continue
         
-        # استخدام دالتك (النقر البشري) لضمان أقصى درجة تفاعل
-        success = await human_click(page, buster_btn)
-        if success:
-            send_tg("🎯 تم الضغط على الشخص الأصفر بنجاح!")
-        else:
-            # كحل بديل في حال فشل النقر البشري لأي سبب
-            await buster_btn.click(force=True)
-            send_tg("🎯 تم الضغط على الشخص الأصفر (نقر بديل)!")
+        if target_btn:
+            # الانتظار ليكون الزر قابلاً للتفاعل
+            await target_btn.wait_for(state="visible", timeout=10000)
             
-        await asyncio.sleep(8)
-        return True
+            # استخدام دالة النقر البشري الخاصة بك
+            success = await human_click(page, target_btn)
+            if success:
+                send_tg("🎯 تم الضغط على الشخص الأصفر بنجاح!")
+            else:
+                await target_btn.click(force=True)
+                send_tg("🎯 تم الضغط على الشخص الأصفر (نقر إجباري)!")
+                
+            await asyncio.sleep(8) # انتظار حل الكابتشا
+            return True
+        else:
+            send_tg("❌ لم يتم العثور على زر Buster في أي إطار (Frame)")
+            await page.screenshot(path="buster_not_found.png")
+            send_tg("📸 صورة للتحقق من الحالة:", "buster_not_found.png")
+            return False
     except Exception as e:
-        send_tg(f"❌ لم يتمكن من النقر على الشخص الأصفر: {str(e)[:100]}")
+        send_tg(f"❌ خطأ في التعامل مع Buster: {str(e)[:100]}")
         return False
-# ----------------------------------------------------
+# -----------------------------------------------------------------
 
 async def run():
-    send_tg("🚀 بدء المهمة باستخدام النسخة الجاهزة من Buster...")
+    send_tg("🚀 بدء المهمة...")
     ext_path = await setup_compiled_buster()
     if not ext_path: return
 
@@ -161,33 +165,19 @@ async def run():
         page = context.pages[0]
         try:
             await context.add_cookies(MY_COOKIES)
-            
-            await page.goto("chrome://extensions/")
-            await asyncio.sleep(2)
-            await page.screenshot(path="diag_extensions.png")
-            send_tg("📸 صورة لصفحة الإضافات:", "diag_extensions.png")
-            
             await page.goto(LAB_URL, timeout=60000)
             await asyncio.sleep(4)
-            
             await dismiss_credits_modal(page)
-            
-            await page.screenshot(path="diag_lab_page.png")
-            send_tg("🌐 صفحة اللاب بعد معالجة النوافذ:", "diag_lab_page.png")
             
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
-                await page.screenshot(path="diag_after_start.png")
-                send_tg("📸 ما بعد الضغط على Start Lab:", "diag_after_start.png")
-                
                 if await click_captcha_checkbox(page):
                     await handle_buster(page)
                     await asyncio.sleep(5)
-                    await page.screenshot(path="final_diag.png")
-                    send_tg("📸 النتيجة النهائية:", "final_diag.png")
+                    await page.screenshot(path="final_result.png")
+                    send_tg("📸 النتيجة النهائية للمهمة:", "final_result.png")
                 else:
                     send_tg("❌ لم يظهر مربع الكابتشا")
-
         except Exception as e:
             send_tg(f"🔥 خطأ غير متوقع: {e}")
         finally:

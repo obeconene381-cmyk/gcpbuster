@@ -130,7 +130,6 @@ async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     await asyncio.sleep(5)
 
-    # الطريقة 1: البحث عن iframe بـ name يبدأ بـ c- (bframe)
     for attempt in range(15):
         try:
             all_iframes = await page.locator('iframe').all()
@@ -139,11 +138,15 @@ async def handle_buster(page):
                     name = await iframe_el.get_attribute('name') or ''
                     src = await iframe_el.get_attribute('src') or ''
                     if (name.startswith('c-') and 'recaptcha' in src) or 'bframe' in src:
+                        # السكرول إلى الـ iframe أولاً
+                        await iframe_el.scroll_into_view_if_needed()
+                        await asyncio.sleep(1)
                         frame = await iframe_el.content_frame()
                         if frame:
                             btn = frame.locator('#solver-button')
                             if await btn.count() > 0:
-                                await btn.wait_for(state='visible', timeout=3000)
+                                await btn.scroll_into_view_if_needed()
+                                await asyncio.sleep(0.5)
                                 await btn.click(force=True)
                                 send_tg("🎯 تم الضغط على الشخص الأصفر!")
                                 await asyncio.sleep(8)
@@ -153,30 +156,6 @@ async def handle_buster(page):
         except:
             pass
         await asyncio.sleep(1)
-
-    # الطريقة 2: النقر على إحداثيات الشخص الأصفر مباشرة
-    try:
-        send_tg("🔄 محاولة بالإحداثيات المباشرة...")
-        all_iframes = await page.locator('iframe').all()
-        for iframe_el in all_iframes:
-            try:
-                src = await iframe_el.get_attribute('src') or ''
-                name = await iframe_el.get_attribute('name') or ''
-                if 'bframe' in src or name.startswith('c-'):
-                    box = await iframe_el.bounding_box()
-                    if box:
-                        x = box['x'] + 40
-                        y = box['y'] + box['height'] - 30
-                        await page.mouse.move(x, y, steps=5)
-                        await asyncio.sleep(0.2)
-                        await page.mouse.click(x, y)
-                        send_tg("🎯 تم الضغط بالإحداثيات على الشخص الأصفر!")
-                        await asyncio.sleep(8)
-                        return True
-            except:
-                continue
-    except:
-        pass
 
     send_tg("❌ لم يتم إيجاد الشخص الأصفر")
     return False

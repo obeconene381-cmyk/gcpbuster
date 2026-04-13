@@ -4,6 +4,7 @@ import zipfile
 import requests
 import re
 import shutil
+import random
 from playwright.async_api import async_playwright
 
 # --- الإعدادات ---
@@ -29,20 +30,25 @@ def send_tg(msg, img=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
     try:
         if img and os.path.exists(img):
-            with open(img, "rb") as f: requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
-        else: requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
-    except: pass
+            with open(img, "rb") as f: 
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
+        else: 
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
+    except: 
+        pass
 
 async def setup_compiled_buster():
     ext_dir = os.path.abspath("buster_compiled_ext")
-    if os.path.exists(ext_dir): shutil.rmtree(ext_dir)
+    if os.path.exists(ext_dir): 
+        shutil.rmtree(ext_dir)
     os.makedirs(ext_dir)
     zip_path = "buster_ready.zip"
     
     try:
         send_tg("📥 جاري تحميل النسخة الرسمية الجاهزة للإضافة...")
         r = requests.get(BUSTER_COMPILED_URL, timeout=30)
-        with open(zip_path, "wb") as f: f.write(r.content)
+        with open(zip_path, "wb") as f: 
+            f.write(r.content)
         
         with zipfile.ZipFile(zip_path, 'r') as z: 
             z.extractall(ext_dir)
@@ -68,7 +74,8 @@ async def human_click(page, locator):
             return True
         await locator.click(delay=200)
         return True
-    except: return False
+    except: 
+        return False
 
 async def dismiss_credits_modal(page):
     try:
@@ -98,7 +105,8 @@ async def click_start_lab_button(page):
                 await btn.click(force=True)
                 send_tg("✅ تم الضغط على Start Lab")
                 return True
-        except: pass
+        except: 
+            pass
         await asyncio.sleep(1)
     return False
 
@@ -114,7 +122,8 @@ async def click_captcha_checkbox(page):
                 await human_click(page, checkbox)
                 send_tg("✅ تم الضغط على المربع")
                 return True
-        except: continue
+        except: 
+            continue
     return False
 
 # ===============================================

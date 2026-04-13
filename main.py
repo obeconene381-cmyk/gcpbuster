@@ -130,6 +130,7 @@ async def handle_buster(page):
     send_tg("🕵️ البحث عن الشخص الأصفر...")
     await asyncio.sleep(5)
 
+    # البحث عن الـ anchor iframe أولاً لمعرفة موقع الكابتشا
     for attempt in range(15):
         try:
             all_iframes = await page.locator('iframe').all()
@@ -137,20 +138,40 @@ async def handle_buster(page):
                 try:
                     name = await iframe_el.get_attribute('name') or ''
                     src = await iframe_el.get_attribute('src') or ''
-                    if (name.startswith('c-') and 'recaptcha' in src) or 'bframe' in src:
-                        # السكرول إلى الـ iframe أولاً
-                        await iframe_el.scroll_into_view_if_needed()
-                        await asyncio.sleep(1)
-                        frame = await iframe_el.content_frame()
-                        if frame:
-                            btn = frame.locator('#solver-button')
-                            if await btn.count() > 0:
-                                await btn.scroll_into_view_if_needed()
-                                await asyncio.sleep(0.5)
-                                await btn.click(force=True)
-                                send_tg("🎯 تم الضغط على الشخص الأصفر!")
-                                await asyncio.sleep(8)
-                                return True
+                    # الـ anchor iframe هو الذي يحتوي على مربع الكابتشا المرئي
+                    if name.startswith('a-') and 'recaptcha' in src:
+                        box = await iframe_el.bounding_box()
+                        if box and box['width'] > 0 and box['height'] > 0 and box['y'] > 0:
+                            # الشخص الأصفر يكون أسفل الكابتشا بمقدار ارتفاع الكابتشا
+                            # الكابتشا المنبثقة عادة ارتفاعها ~500px والشخص الأصفر في أسفلها
+                            buster_x = box['x'] + 45
+                            buster_y = box['y'] + box['height'] + 380
+                            await page.mouse.move(buster_x, buster_y, steps=5)
+                            await asyncio.sleep(0.3)
+                            await page.mouse.click(buster_x, buster_y)
+                            send_tg(f"🎯 تم الضغط على الشخص الأصفر عند {buster_x:.0f},{buster_y:.0f}!")
+                            await asyncio.sleep(10)
+                            return True
+                except:
+                    continue
+
+            # محاولة عبر الـ bframe مباشرة
+            for iframe_el in all_iframes:
+                try:
+                    name = await iframe_el.get_attribute('name') or ''
+                    src = await iframe_el.get_attribute('src') or ''
+                    if name.startswith('c-') or 'bframe' in src:
+                        box = await iframe_el.bounding_box()
+                        if box and box['width'] > 0:
+                            # زر Buster في أسفل يسار الـ bframe
+                            buster_x = box['x'] + 45
+                            buster_y = box['y'] + box['height'] - 25
+                            await page.mouse.move(buster_x, buster_y, steps=5)
+                            await asyncio.sleep(0.3)
+                            await page.mouse.click(buster_x, buster_y)
+                            send_tg(f"🎯 تم الضغط على الشخص الأصفر (bframe) عند {buster_x:.0f},{buster_y:.0f}!")
+                            await asyncio.sleep(10)
+                            return True
                 except:
                     continue
         except:

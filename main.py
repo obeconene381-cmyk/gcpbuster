@@ -4,14 +4,15 @@ import zipfile
 import requests
 import re
 import shutil
-import json
 from playwright.async_api import async_playwright
 
 # --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
-BUSTER_ZIP_URL = "https://github.com/dessant/buster/archive/refs/heads/master.zip"
+
+# 🔥 التعديل الجوهري: استخدام النسخة المبنية والجاهزة للكروم من إصدارات المطور الرسمية 🔥
+BUSTER_COMPILED_URL = "https://github.com/dessant/buster/releases/download/v3.1.0/buster_captcha_solver_for_humans-3.1.0-chrome.zip"
 
 WORKING_PROXY = {
     "server": "http://92.119.128.15:9996",
@@ -19,28 +20,10 @@ WORKING_PROXY = {
     "password": "y3ld6w"
 }
 
-# مانيفست معدل لضمان القبول الفوري (بدون متغيرات لغوية معقدة في البداية)
-CHROME_MANIFEST_CONTENT = {
-    "manifest_version": 3,
-    "name": "Buster Captcha Solver",
-    "version": "1.0.0",
-    "description": "Solving captchas for humans",
-    "permissions": ["storage", "offscreen", "scripting"],
-    "host_permissions": ["*://*.google.com/recaptcha/*", "*://*.recaptcha.net/*"],
-    "background": {"service_worker": "src/background/script.js"},
-    "content_scripts": [{
-        "matches": ["*://*.google.com/recaptcha/*", "*://*.recaptcha.net/*"],
-        "js": ["src/base/script.js"],
-        "css": ["src/base/style.css"],
-        "all_frames": True
-    }],
-    "icons": {"128": "src/assets/icons/app/icon-128.png"},
-    "web_accessible_resources": [{"resources": ["src/base/solver-button.css"], "matches": ["<all_urls>"]}]
-}
-
 MY_COOKIES = [
     {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
     {"domain": "www.skills.google", "name": "_cvl-4_1_14_session", "value": "lQa%2FMnKdErx31nYRawt27XpphO7RO1Mod3%2FCk8T6PqZfkPZohBUhjBqhs2Mw1GIO229gr0KDHGkAp%2F9o7Blffpj%2BNy7YVlSwMKrQX3%2B0RxdyBzB0LU%2BFdcq5wLCPFWUPMhJNMngGjgVjse8JNXc1BO1j2FUpFQqvzAVGdPUShDJMshUZOva39naRS%2BVT%2BpBdaPE0I%2FgjsG6fC6KFeGqADXbUOQ36JiZQkoXYIjuKCxrOKwyaLKj7fFRebXiBduQKQIH3JK8bvcn0LkvK8BuvZ262zjAku4%2FkzRdFKfsfQMXrZStwGytxy1dqm%2FoQ6Lut8s9fnFVTGGcYIoJoxwba0Yx653S2FCemxd3GSCCqfGuNfuzRfNSCjsYvAeUmPdkQzepE80F3hbK15UUyM%2B2Puh3e4e%2FoovbnYf0xLZFGrxSpTcgJ5zb1FElGZ9LNFypWppJjbPlIySkS6X00pjko3fzmpi2TmUHvdBfPbn7ZmJbQ%2Fa8mQzvispzCN8GaAavsOZ%2FsD6xOt0%2FukYWX4oyXfRQg8AP8iZvYkj1iOvsbagPMKjp7utfL9DzDJ5n7LorhayjfSh9XLi1us38cm%2Fu8fzdbvLJn0DJ7koAN2V8V2KKLiGrU2H3e2z4pAFvTAmFENKac3LdIOOs2oNNj2Z8yF0iEnprV%2FzPeOb7eCcvFU66A6qb3f4SgUOTFVchEXizCrTx0%2FvdEQhoQG%2Boc3WXvnYtDbpPIuyt0BJSUda0e63hfWvQnww7DjHcdLtchLMoGYyOW0UktBRGkG3s%3D--TF35bd8CfnDqO%2BYr--Bp220SPOMrUj1y6NmvAiVw%3D%3D", "path": "/", "secure": True, "httpOnly": True},
+    {"domain": "www.skills.google", "name": "user.id", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOVE13TmpJMyIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--3706d9f3abb091776145342b4e9be6e645941d44", "path": "/", "secure": True},
 ]
 
 def send_tg(msg, img=None):
@@ -49,40 +32,34 @@ def send_tg(msg, img=None):
         if img and os.path.exists(img):
             with open(img, "rb") as f: requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
         else: requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
-    except: print(f"Failed to send TG: {msg}")
+    except: pass
 
-async def setup_diagnostic_buster():
-    """إعداد الإضافة مع تنظيف كامل للمجلدات لضمان عدم حدوث تداخل"""
-    ext_dir = os.path.abspath("buster_final_ext")
+async def setup_compiled_buster():
+    """تحميل النسخة الجاهزة من الإضافة لضمان عملها الفوري دون تعديل برمجي منا"""
+    ext_dir = os.path.abspath("buster_compiled_ext")
     if os.path.exists(ext_dir): shutil.rmtree(ext_dir)
     os.makedirs(ext_dir)
+    zip_path = "buster_ready.zip"
     
     try:
-        send_tg("⚙️ جاري محاولة بناء الإضافة برمجياً...")
-        r = requests.get(BUSTER_ZIP_URL)
-        with open("temp.zip", "wb") as f: f.write(r.content)
+        send_tg("📥 جاري تحميل النسخة الرسمية الجاهزة للإضافة...")
+        r = requests.get(BUSTER_COMPILED_URL, timeout=30)
+        with open(zip_path, "wb") as f: f.write(r.content)
         
-        with zipfile.ZipFile("temp.zip", 'r') as z: z.extractall("temp_raw")
-        
-        # العثور على مجلد src
-        raw_folder = next(iter(os.listdir("temp_raw")))
-        src_path = os.path.join("temp_raw", raw_folder, "src")
-        
-        # نقل المحتويات
-        shutil.move(src_path, os.path.join(ext_dir, "src"))
-        
-        # كتابة المانيفست
-        with open(os.path.join(ext_dir, "manifest.json"), "w") as f:
-            json.dump(CHROME_MANIFEST_CONTENT, f, indent=2)
+        # فك الضغط في المجلد مباشرة
+        with zipfile.ZipFile(zip_path, 'r') as z: 
+            z.extractall(ext_dir)
             
-        shutil.rmtree("temp_raw")
-        os.remove("temp.zip")
+        os.remove(zip_path)
+        send_tg(f"✅ تم تجهيز الإضافة الجاهزة في المسار: {ext_dir}")
         return ext_dir
     except Exception as e:
-        send_tg(f"❌ فشل الإعداد البرمجي: {e}")
+        send_tg(f"❌ فشل تحميل الإضافة الجاهزة: {e}")
         return None
 
-# --- دوال الضغط (أصلية 100% كما في كودك الناجح) ---
+# ===============================================
+# دوالك الأصلية للضغط بقيت كما هي دون أي تغيير
+# ===============================================
 async def human_click(page, locator):
     try:
         await locator.scroll_into_view_if_needed()
@@ -99,6 +76,28 @@ async def human_click(page, locator):
         return True
     except: return False
 
+# --- الدالة الجديدة للتعامل مع النافذة المنبثقة للـ Credits ---
+async def dismiss_credits_modal(page):
+    try:
+        # البحث عن زر "Dismiss" (تخطي النافذة إذا ظهرت)
+        btn = page.get_by_role("button", name=re.compile(r"Dismiss", re.I))
+        if await btn.count() > 0 and await btn.first.is_visible():
+            await btn.first.click()
+            send_tg("✅ تم العثور على نافذة Credits Expiring وإغلاقها.")
+            await asyncio.sleep(2)
+            return True
+            
+        # محاولة أخرى بالنص المباشر
+        text_btn = page.locator("text=Dismiss")
+        if await text_btn.count() > 0 and await text_btn.first.is_visible():
+            await text_btn.first.click()
+            send_tg("✅ تم إغلاق نافذة Credits Expiring.")
+            await asyncio.sleep(2)
+            return True
+    except Exception as e:
+        pass
+    return False
+
 async def click_start_lab_button(page):
     pattern = re.compile(r"Start\s*Lab", re.IGNORECASE)
     for _ in range(30):
@@ -112,9 +111,39 @@ async def click_start_lab_button(page):
         await asyncio.sleep(1)
     return False
 
+async def click_captcha_checkbox(page):
+    send_tg("🤛 البحث عن مربع الكابتشا...")
+    await asyncio.sleep(3)
+    iframes = await page.locator('iframe[title*="reCAPTCHA"]').all()
+    for iframe in iframes:
+        try:
+            frame_content = iframe.content_frame
+            checkbox = frame_content.locator('.recaptcha-checkbox-border').first
+            if await checkbox.is_visible():
+                await human_click(page, checkbox)
+                send_tg("✅ تم الضغط على المربع")
+                return True
+        except: continue
+    return False
+
+async def handle_buster(page):
+    send_tg("🕵️ البحث عن الشخص الأصفر...")
+    try:
+        await asyncio.sleep(5)
+        challenge_frame = page.frame_locator('iframe[title*="challenge"]').first
+        buster_btn = challenge_frame.locator("#solver-button")
+        await buster_btn.wait_for(state="visible", timeout=15000)
+        await buster_btn.click(force=True)
+        send_tg("🎯 تم الضغط على الشخص الأصفر!")
+        await asyncio.sleep(8)
+        return True
+    except: return False
+
+# ===============================================
+
 async def run():
-    send_tg("🚀 بدء المهمة التشخيصية...")
-    ext_path = await setup_diagnostic_buster()
+    send_tg("🚀 بدء المهمة باستخدام النسخة الجاهزة من Buster...")
+    ext_path = await setup_compiled_buster()
     if not ext_path: return
 
     async with async_playwright() as p:
@@ -122,63 +151,42 @@ async def run():
             "/tmp/chrome_diag",
             headless=False,
             args=[f"--disable-extensions-except={ext_path}", f"--load-extension={ext_path}", "--headless=new", "--no-sandbox"],
-            proxy=WORKING_PROXY
+            proxy=WORKING_PROXY,
+            viewport={'width': 1280, 'height': 720}
         )
         page = context.pages[0]
         try:
             await context.add_cookies(MY_COOKIES)
             
-            # --- خطوة التشخيص 1: فحص الإضافات ---
-            send_tg("🔍 فحص حقن الإضافة...")
+            # 1. التأكد من الإضافة
             await page.goto("chrome://extensions/")
-            await asyncio.sleep(3)
+            await asyncio.sleep(2)
             await page.screenshot(path="diag_extensions.png")
-            send_tg("📸 صورة لصفحة الإضافات:", "diag_extensions.png")
+            send_tg("📸 الإضافة الآن يجب أن تكون ظاهرة هنا:", "diag_extensions.png")
             
-            # فحص إذا كان هناك زر "Errors"
-            if await page.get_by_role("button", name="Errors").count() > 0:
-                await page.get_by_role("button", name="Errors").first.click()
-                await asyncio.sleep(1)
-                await page.screenshot(path="ext_errors.png")
-                send_tg("⚠️ تم اكتشاف أخطاء في الإضافة! إليك التفاصيل:", "ext_errors.png")
-
-            # --- خطوة التشخيص 2: الدخول للاب ---
+            # 2. الدخول للاب
             await page.goto(LAB_URL, timeout=60000)
-            await page.screenshot(path="diag_lab_page.png")
-            send_tg("🌐 صفحة اللاب محملة:", "diag_lab_page.png")
+            await asyncio.sleep(4)
             
+            # 🔥 التعامل مع النافذة المنبثقة إن وجدت 🔥
+            await dismiss_credits_modal(page)
+            
+            await page.screenshot(path="diag_lab_page.png")
+            send_tg("🌐 صفحة اللاب بعد معالجة النوافذ:", "diag_lab_page.png")
+            
+            # 3. بدء اللاب واستكمال المهمة
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
                 await page.screenshot(path="diag_after_start.png")
                 send_tg("📸 ما بعد الضغط على Start Lab:", "diag_after_start.png")
                 
-                # البحث عن الكابتشا
-                iframes = await page.locator('iframe[title*="reCAPTCHA"]').all()
-                if not iframes:
-                    send_tg("❌ لم يتم العثور على أي iframe للكابتشا!")
+                if await click_captcha_checkbox(page):
+                    await handle_buster(page)
+                    await asyncio.sleep(5)
+                    await page.screenshot(path="final_diag.png")
+                    send_tg("📸 النتيجة النهائية:", "final_diag.png")
                 else:
-                    send_tg(f"✅ تم العثور على {len(iframes)} إطار كابتشا.")
-                    # محاولة الضغط
-                    for iframe in iframes:
-                        frame = iframe.content_frame
-                        checkbox = frame.locator('.recaptcha-checkbox-border').first
-                        if await checkbox.is_visible():
-                            await human_click(page, checkbox)
-                            send_tg("✅ تم الضغط على المربع.")
-                            
-                            # التشخيص 3: هل ظهر Buster؟
-                            await asyncio.sleep(5)
-                            challenge_frame = page.frame_locator('iframe[title*="challenge"]').first
-                            await page.screenshot(path="diag_buster_check.png")
-                            if await challenge_frame.locator("#solver-button").is_visible():
-                                send_tg("🎯 زر Buster ظهر بنجاح!", "diag_buster_check.png")
-                                await challenge_frame.locator("#solver-button").click()
-                            else:
-                                send_tg("❌ زر Buster لم يظهر داخل التحدي.", "diag_buster_check.png")
-            
-            await asyncio.sleep(5)
-            await page.screenshot(path="final_diag.png")
-            send_tg("📸 الحالة النهائية للمهمة:", "final_diag.png")
+                    send_tg("❌ لم يظهر مربع الكابتشا")
 
         except Exception as e:
             send_tg(f"🔥 خطأ غير متوقع: {e}")

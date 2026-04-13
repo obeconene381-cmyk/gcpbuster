@@ -35,18 +35,14 @@ def send_tg(msg, img=None):
         print(f"TG Error: {e}")
 
 async def get_buster_path():
-    """البحث عن مجلد Buster"""
-    possible_names = ["buster-master", "buster-main"]
-    
-    for name in possible_names:
-        if os.path.exists(name):
-            for root, dirs, files in os.walk(name):
-                if "manifest.json" in files:
-                    return os.path.abspath(root)
+    """البحث الديناميكي عن مجلد Buster بالبحث عن ملف manifest.json"""
+    for root, dirs, files in os.walk(os.getcwd()):
+        if "manifest.json" in files:
+            return os.path.abspath(root)
     return None
 
+# --- دوال الضغط بقيت كما هي دون أي تعديل ---
 async def human_click(page, locator):
-    """محاكاة النقر البشري"""
     try:
         await locator.scroll_into_view_if_needed()
         box = await locator.bounding_box()
@@ -133,25 +129,28 @@ async def handle_buster(page):
     except Exception as e:
         send_tg(f"❌ الشخص الأصفر لم يظهر: {str(e)[:100]}")
         return False
+# -----------------------------------------------
 
 async def run():
     send_tg("🚀 بدء المهمة...")
     
     ext_path = await get_buster_path()
     if not ext_path:
-        send_tg("❌ لم يتم العثور على Buster")
+        send_tg("❌ لم يتم العثور على ملفات إضافة Buster (لم يتم إيجاد manifest.json)")
         return
     
-    send_tg(f"📂 استخدام الإضافة من: {ext_path}")
+    send_tg(f"📂 تم إيجاد الإضافة بنجاح في: {ext_path}")
     
     async with async_playwright() as p:
+        # ملاحظة هامة: يجب أن يكون headless=False مع استخدام --headless=new لتعمل الإضافات
         context = await p.chromium.launch_persistent_context(
             "/tmp/chrome_profile",
-            headless=True,
+            headless=False,  # تم التعديل هنا لضمان عمل الإضافة
             proxy=WORKING_PROXY,
             args=[
                 f"--disable-extensions-except={ext_path}",
                 f"--load-extension={ext_path}",
+                "--headless=new", # تفعيل وضع headless الداعم للإضافات
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage"
@@ -163,6 +162,14 @@ async def run():
         
         try:
             await context.add_cookies(MY_COOKIES)
+            
+            # --- التأكد من عمل الإضافة قبل الدخول للاب ---
+            send_tg("🔍 جاري فحص صفحة الإضافات للتأكد من تحميل Buster...")
+            await page.goto("chrome://extensions/")
+            await asyncio.sleep(2)
+            await page.screenshot(path="extensions_check.png", full_page=True)
+            send_tg("📸 صورة لصفحة الإضافات للتأكد:", "extensions_check.png")
+            # ----------------------------------------------
             
             send_tg("🌐 فتح اللاب...")
             await page.goto(LAB_URL, timeout=90000, wait_until="domcontentloaded")

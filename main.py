@@ -11,7 +11,6 @@ BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
-# 🔥 التعديل الجوهري: استخدام النسخة المبنية والجاهزة للكروم من إصدارات المطور الرسمية 🔥
 BUSTER_COMPILED_URL = "https://github.com/dessant/buster/releases/download/v3.1.0/buster_captcha_solver_for_humans-3.1.0-chrome.zip"
 
 WORKING_PROXY = {
@@ -30,36 +29,36 @@ def send_tg(msg, img=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
     try:
         if img and os.path.exists(img):
-            with open(img, "rb") as f: requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
-        else: requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
-    except: pass
+            with open(img, "rb") as f: 
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
+        else: 
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
+    except: 
+        pass
 
 async def setup_compiled_buster():
-    """تحميل النسخة الجاهزة من الإضافة لضمان عملها الفوري دون تعديل برمجي منا"""
     ext_dir = os.path.abspath("buster_compiled_ext")
-    if os.path.exists(ext_dir): shutil.rmtree(ext_dir)
+    if os.path.exists(ext_dir): 
+        shutil.rmtree(ext_dir)
     os.makedirs(ext_dir)
     zip_path = "buster_ready.zip"
     
     try:
-        send_tg("📥 جاري تحميل النسخة الرسمية الجاهزة للإضافة...")
+        send_tg("📥 جاري تحميل النسخة الرسمية...")
         r = requests.get(BUSTER_COMPILED_URL, timeout=30)
-        with open(zip_path, "wb") as f: f.write(r.content)
+        with open(zip_path, "wb") as f: 
+            f.write(r.content)
         
-        # فك الضغط في المجلد مباشرة
         with zipfile.ZipFile(zip_path, 'r') as z: 
             z.extractall(ext_dir)
             
         os.remove(zip_path)
-        send_tg(f"✅ تم تجهيز الإضافة الجاهزة في المسار: {ext_dir}")
+        send_tg(f"✅ تم تجهيز الإضافة")
         return ext_dir
     except Exception as e:
-        send_tg(f"❌ فشل تحميل الإضافة الجاهزة: {e}")
+        send_tg(f"❌ فشل تحميل الإضافة: {e}")
         return None
 
-# ===============================================
-# دوالك الأصلية للضغط بقيت كما هي دون أي تغيير
-# ===============================================
 async def human_click(page, locator):
     try:
         await locator.scroll_into_view_if_needed()
@@ -74,27 +73,25 @@ async def human_click(page, locator):
             return True
         await locator.click(delay=200)
         return True
-    except: return False
+    except: 
+        return False
 
-# --- الدالة الجديدة للتعامل مع النافذة المنبثقة للـ Credits ---
 async def dismiss_credits_modal(page):
     try:
-        # البحث عن زر "Dismiss" (تخطي النافذة إذا ظهرت)
         btn = page.get_by_role("button", name=re.compile(r"Dismiss", re.I))
         if await btn.count() > 0 and await btn.first.is_visible():
             await btn.first.click()
-            send_tg("✅ تم العثور على نافذة Credits Expiring وإغلاقها.")
+            send_tg("✅ تم إغلاق نافذة Credits")
             await asyncio.sleep(2)
             return True
             
-        # محاولة أخرى بالنص المباشر
         text_btn = page.locator("text=Dismiss")
         if await text_btn.count() > 0 and await text_btn.first.is_visible():
             await text_btn.first.click()
-            send_tg("✅ تم إغلاق نافذة Credits Expiring.")
+            send_tg("✅ تم إغلاق نافذة Credits")
             await asyncio.sleep(2)
             return True
-    except Exception as e:
+    except: 
         pass
     return False
 
@@ -107,7 +104,8 @@ async def click_start_lab_button(page):
                 await btn.click(force=True)
                 send_tg("✅ تم الضغط على Start Lab")
                 return True
-        except: pass
+        except: 
+            pass
         await asyncio.sleep(1)
     return False
 
@@ -123,99 +121,396 @@ async def click_captcha_checkbox(page):
                 await human_click(page, checkbox)
                 send_tg("✅ تم الضغط على المربع")
                 return True
-        except: continue
-    return False
-
-async def handle_buster(page):
-    send_tg("🕵️ البحث عن الشخص الأصفر...")
-    await asyncio.sleep(5)
-
-    for attempt in range(15):
-        try:
-            all_iframes = await page.locator('iframe').all()
-            for iframe_el in all_iframes:
-                try:
-                    name = await iframe_el.get_attribute('name') or ''
-                    src = await iframe_el.get_attribute('src') or ''
-                    if name.startswith('a-') and 'recaptcha' in src:
-                        box = await iframe_el.bounding_box()
-                        if box and box['width'] > 0 and box['height'] > 0 and box['y'] > 0:
-                            buster_x = box['x'] + 45
-                            buster_y = box['y'] + 536
-                            # رسم مربع أحمر على مكان الضغط
-                            await page.evaluate(f"""
-                                var d = document.createElement('div');
-                                d.style.cssText = 'position:fixed;left:{buster_x-15}px;top:{buster_y-15}px;width:30px;height:30px;background:red;border:3px solid yellow;z-index:999999;border-radius:50%;';
-                                document.body.appendChild(d);
-                            """)
-                            await asyncio.sleep(0.5)
-                            await page.screenshot(path="buster_target.png")
-                            send_tg(f"🎯 سأضغط عند {buster_x:.0f},{buster_y:.0f} (anchor y={box['y']:.0f})", "buster_target.png")
-                            await page.mouse.move(buster_x, buster_y, steps=5)
-                            await asyncio.sleep(0.3)
-                            await page.mouse.click(buster_x, buster_y)
-                            await asyncio.sleep(10)
-                            return True
-                except:
-                    continue
-        except:
-            pass
-        await asyncio.sleep(1)
-
-    send_tg("❌ لم يتم إيجاد الشخص الأصفر")
+        except: 
+            continue
     return False
 
 # ===============================================
+# 🔥 جميع طرق الضغط على Buster 🔥
+# ===============================================
+
+async def method_1_shadow_dom_click(page):
+    """الطريقة 1: البحث داخل Shadow DOM"""
+    send_tg("🎯 الطريقة 1: Shadow DOM Click")
+    
+    try:
+        challenge_iframe = page.frame_locator('iframe[src*="recaptcha/api2/bframe"]').first
+        
+        # البحث عن زر الصوت أولاً
+        audio_btn = challenge_iframe.locator('#recaptcha-audio-button, .rc-button-audio')
+        if await audio_btn.is_visible():
+            await audio_btn.click()
+            await asyncio.sleep(2)
+            send_tg("🔊 تم التحويل للصوت")
+        
+        # البحث عن Buster
+        buster_btn = challenge_iframe.locator('button[title*="Buster"], button[class*="buster"], div[class*="buster"]').first
+        
+        if await buster_btn.is_visible(timeout=5000):
+            await buster_btn.click()
+            send_tg("✅ تم الضغط على Buster (Shadow DOM)")
+            await asyncio.sleep(8)
+            
+            verify_btn = challenge_iframe.locator('#recaptcha-verify-button')
+            if await verify_btn.is_visible():
+                await verify_btn.click()
+            
+            return True
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 1: {e}")
+    
+    await page.screenshot(path="method1_shadow_dom.png")
+    send_tg("📸 نتيجة الطريقة 1:", "method1_shadow_dom.png")
+    return False
+
+async def method_2_keyboard_shortcut(page):
+    """الطريقة 2: اختصار لوحة المفاتيح"""
+    send_tg("🎯 الطريقة 2: Keyboard Shortcut")
+    
+    try:
+        # التركيز على الـ iframe
+        iframe = page.frame_locator('iframe[src*="recaptcha/api2/bframe"]').first
+        await iframe.locator('body').click()
+        await asyncio.sleep(1)
+        
+        shortcuts = [
+            ('Control+Shift+KeyS'),
+            ('Control+Shift+KeyA'),
+            ('Alt+Shift+KeyS'),
+            ('Control+Period'),
+        ]
+        
+        for shortcut in shortcuts:
+            await page.keyboard.press(shortcut)
+            send_tg(f"⌨️ جربت: {shortcut}")
+            await asyncio.sleep(3)
+            
+            if await page.locator('.recaptcha-checkbox-checked').is_visible():
+                send_tg(f"✅ نجح الاختصار: {shortcut}")
+                return True
+        
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 2: {e}")
+    
+    await page.screenshot(path="method2_keyboard.png")
+    send_tg("📸 نتيجة الطريقة 2:", "method2_keyboard.png")
+    return False
+
+async def method_3_js_injection(page):
+    """الطريقة 3: حقن JavaScript"""
+    send_tg("🎯 الطريقة 3: JavaScript Injection")
+    
+    script = """
+    () => {
+        // التحويل للصوت أولاً
+        const audioBtn = document.querySelector('#recaptcha-audio-button, .rc-button-audio');
+        if (audioBtn) {
+            audioBtn.click();
+        }
+        
+        // البحث عن Buster في جميع iframes
+        const iframes = document.querySelectorAll('iframe');
+        for (let iframe of iframes) {
+            try {
+                const doc = iframe.contentDocument || iframe.contentWindow.document;
+                const buster = doc.querySelector('button[class*="buster"], [data-buster], button[title*="solve"]');
+                if (buster) {
+                    buster.click();
+                    return 'found_in_iframe';
+                }
+            } catch(e) {}
+        }
+        
+        // البحث في Shadow DOM
+        const allElements = document.querySelectorAll('*');
+        for (let el of allElements) {
+            if (el.shadowRoot) {
+                const buster = el.shadowRoot.querySelector('button[class*="buster"], [class*="solver"]');
+                if (buster) {
+                    buster.click();
+                    return 'found_in_shadow';
+                }
+            }
+        }
+        
+        // محاولة إرسال حدث مخصص لـ Buster
+        window.postMessage({type: 'BUSTER_SOLVE'}, '*');
+        
+        return 'not_found';
+    }
+    """
+    
+    try:
+        result = await page.evaluate(script)
+        send_tg(f"🔍 نتيجة JS: {result}")
+        await asyncio.sleep(8)
+        
+        if await page.locator('.recaptcha-checkbox-checked').is_visible():
+            send_tg("✅ نجحت الطريقة 3")
+            return True
+            
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 3: {e}")
+    
+    await page.screenshot(path="method3_js.png")
+    send_tg("📸 نتيجة الطريقة 3:", "method3_js.png")
+    return False
+
+async def method_4_dynamic_coordinates(page):
+    """الطريقة 4: إحداثيات ديناميكية"""
+    send_tg("🎯 الطريقة 4: Dynamic Coordinates")
+    
+    try:
+        iframe_el = page.locator('iframe[src*="recaptcha/api2/bframe"]').first
+        await iframe_el.wait_for(state='visible', timeout=10000)
+        
+        box = await iframe_el.bounding_box()
+        if not box:
+            return False
+        
+        frame = iframe_el.content_frame
+        audio_btn = frame.locator('#recaptcha-audio-button')
+        
+        if await audio_btn.is_visible():
+            await audio_btn.click()
+            await asyncio.sleep(2)
+            
+            box = await iframe_el.bounding_box()
+            
+            # إحداثيات نسبية مختلفة للتجربة
+            positions = [
+                (0.85, 0.75),  # يمين أسفل
+                (0.90, 0.70),  # يمين أكثر
+                (0.80, 0.80),  # أسفل أكثر
+                (0.88, 0.72),  # وسط
+            ]
+            
+            for i, (px, py) in enumerate(positions):
+                x = box['x'] + (box['width'] * px)
+                y = box['y'] + (box['height'] * py)
+                
+                await page.mouse.move(x, y)
+                await page.screenshot(path=f"method4_pos{i}.png")
+                send_tg(f"📍 تجربة الموقع {i+1}: {x:.0f},{y:.0f}", f"method4_pos{i}.png")
+                
+                await page.mouse.click(x, y)
+                await asyncio.sleep(5)
+                
+                if await page.locator('.recaptcha-checkbox-checked').is_visible():
+                    send_tg(f"✅ نجحت الطريقة 4 عند الموقع {i+1}")
+                    return True
+        
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 4: {e}")
+    
+    await page.screenshot(path="method4_final.png")
+    send_tg("📸 نتيجة الطريقة 4:", "method4_final.png")
+    return False
+
+async def method_5_visual_detection(page):
+    """الطريقة 5: كشف بصري باللون الأصفر"""
+    send_tg("🎯 الطريقة 5: Visual Yellow Detection")
+    
+    try:
+        # التقاط صورة عالية الدقة
+        await page.screenshot(path="full_page.png", full_page=False)
+        
+        # إضافة علامة مرئية للبحث
+        await page.evaluate("""
+            () => {
+                const iframes = document.querySelectorAll('iframe[src*="recaptcha"]');
+                iframes.forEach((iframe, idx) => {
+                    const rect = iframe.getBoundingClientRect();
+                    const marker = document.createElement('div');
+                    marker.style.cssText = \`
+                        position: fixed;
+                        left: \${rect.left}px;
+                        top: \${rect.top}px;
+                        width: \${rect.width}px;
+                        height: \${rect.height}px;
+                        border: 3px solid red;
+                        z-index: 999999;
+                        pointer-events: none;
+                    \`;
+                    document.body.appendChild(marker);
+                });
+            }
+        """)
+        
+        await page.screenshot(path="method5_marked.png")
+        send_tg("📸 علامات على مناطق reCAPTCHA:", "method5_marked.png")
+        
+        # محاولة الضغط على نقاط محتملة
+        iframe_el = page.locator('iframe[src*="recaptcha/api2/bframe"]').first
+        box = await iframe_el.bounding_box()
+        
+        if box:
+            # نقاط محتملة لأيقونة Buster (عادة 45px من اليمين وأسفل)
+            test_points = [
+                (box['x'] + box['width'] - 45, box['y'] + box['height'] - 100),
+                (box['x'] + box['width'] - 50, box['y'] + box['height'] - 90),
+                (box['x'] + box['width'] - 40, box['y'] + box['height'] - 110),
+            ]
+            
+            for i, (x, y) in enumerate(test_points):
+                await page.evaluate(f"""
+                    var d = document.createElement('div');
+                    d.style.cssText = 'position:fixed;left:{x-10}px;top:{y-10}px;width:20px;height:20px;background:yellow;border:2px solid red;z-index:999999;border-radius:50%;';
+                    document.body.appendChild(d);
+                """)
+                
+                await page.mouse.click(x, y)
+                await asyncio.sleep(3)
+                
+                if await page.locator('.recaptcha-checkbox-checked').is_visible():
+                    send_tg(f"✅ نجحت الطريقة 5 عند النقطة {i+1}")
+                    return True
+        
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 5: {e}")
+    
+    await page.screenshot(path="method5_final.png")
+    send_tg("📸 نتيجة الطريقة 5:", "method5_final.png")
+    return False
+
+async def method_6_extension_popup(page):
+    """الطريقة 6: فتح popup الإضافة"""
+    send_tg("🎯 الطريقة 6: Extension Popup")
+    
+    try:
+        # الذهاب لصفحة الإضافة
+        await page.goto("chrome-extension://pkdpajiblgjahglcmbcggmmgnfmnmcgm/src/options/index.html")
+        await asyncio.sleep(2)
+        await page.screenshot(path="buster_options.png")
+        send_tg("📸 إعدادات Buster:", "buster_options.png")
+        
+        # العودة للصفحة الأصلية
+        await page.goto(LAB_URL, timeout=60000)
+        await asyncio.sleep(3)
+        
+        # محاولة تشغيل من الـ background
+        await page.evaluate("""
+            () => {
+                chrome.runtime.sendMessage('pkdpajiblgjahglcmbcggmmgnfmnmcgm', {action: 'solve'}, (response) => {
+                    console.log(response);
+                });
+            }
+        """)
+        
+        await asyncio.sleep(5)
+        
+    except Exception as e:
+        send_tg(f"❌ فشلت الطريقة 6: {e}")
+    
+    await page.screenshot(path="method6_popup.png")
+    send_tg("📸 نتيجة الطريقة 6:", "method6_popup.png")
+    return False
+
+# ===============================================
+# الدالة الرئيسية للتجربة
+# ===============================================
+
+async def try_all_buster_methods(page):
+    """تجربة جميع الطرق بالتسلسل"""
+    send_tg("🚀 بدء تجربة جميع طرق Buster...")
+    
+    methods = [
+        ("Shadow DOM", method_1_shadow_dom_click),
+        ("Keyboard Shortcut", method_2_keyboard_shortcut),
+        ("JavaScript Injection", method_3_js_injection),
+        ("Dynamic Coordinates", method_4_dynamic_coordinates),
+        ("Visual Detection", method_5_visual_detection),
+        ("Extension Popup", method_6_extension_popup),
+    ]
+    
+    results = []
+    
+    for name, method in methods:
+        send_tg(f"\n{'='*20}\n🧪 تجربة: {name}\n{'='*20}")
+        
+        # التأكد من أن الكابتشا لا تزال مفتوحة
+        if await page.locator('.recaptcha-checkbox-checked').is_visible():
+            send_tg("✅ تم الحل بالفعل!")
+            break
+        
+        # إعادة فتح التحدي إذا اختفى
+        if not await page.locator('iframe[src*="recaptcha/api2/bframe"]').is_visible():
+            send_tg("🔄 إعادة فتح الكابتشا...")
+            await click_captcha_checkbox(page)
+            await asyncio.sleep(3)
+        
+        success = await method(page)
+        results.append((name, success))
+        
+        if success:
+            send_tg(f"🏆 النجاح بـ: {name}")
+            break
+        
+        await asyncio.sleep(2)
+    
+    # تقرير نهائي
+    report = "📊 تقرير النتائج:\n" + "\n".join([f"{'✅' if r else '❌'} {n}" for n, r in results])
+    send_tg(report)
+    
+    await page.screenshot(path="final_result.png")
+    send_tg("📸 الصورة النهائية:", "final_result.png")
+    
+    return any([r for _, r in results])
 
 async def run():
-    send_tg("🚀 بدء المهمة باستخدام النسخة الجاهزة من Buster...")
+    send_tg("🚀 بدء المهمة...")
     ext_path = await setup_compiled_buster()
-    if not ext_path: return
+    if not ext_path: 
+        return
 
     async with async_playwright() as p:
         context = await p.chromium.launch_persistent_context(
             "/tmp/chrome_diag",
             headless=False,
-            args=[f"--disable-extensions-except={ext_path}", f"--load-extension={ext_path}", "--headless=new", "--no-sandbox"],
+            args=[
+                f"--disable-extensions-except={ext_path}", 
+                f"--load-extension={ext_path}", 
+                "--headless=new", 
+                "--no-sandbox",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process"
+            ],
             proxy=WORKING_PROXY,
             viewport={'width': 1280, 'height': 720}
         )
         page = context.pages[0]
+        
         try:
             await context.add_cookies(MY_COOKIES)
             
-            # 1. التأكد من الإضافة
+            # فحص الإضافات
             await page.goto("chrome://extensions/")
             await asyncio.sleep(2)
             await page.screenshot(path="diag_extensions.png")
-            send_tg("📸 الإضافة الآن يجب أن تكون ظاهرة هنا:", "diag_extensions.png")
+            send_tg("📸 الإضافات:", "diag_extensions.png")
             
-            # 2. الدخول للاب
+            # الدخول للاب
             await page.goto(LAB_URL, timeout=60000)
             await asyncio.sleep(4)
-            
-            # 🔥 التعامل مع النافذة المنبثقة إن وجدت 🔥
             await dismiss_credits_modal(page)
             
             await page.screenshot(path="diag_lab_page.png")
-            send_tg("🌐 صفحة اللاب بعد معالجة النوافذ:", "diag_lab_page.png")
+            send_tg("🌐 صفحة اللاب:", "diag_lab_page.png")
             
-            # 3. بدء اللاب واستكمال المهمة
+            # بدء اللاب
             if await click_start_lab_button(page):
                 await asyncio.sleep(5)
                 await page.screenshot(path="diag_after_start.png")
-                send_tg("📸 ما بعد الضغط على Start Lab:", "diag_after_start.png")
+                send_tg("📸 بعد Start Lab:", "diag_after_start.png")
                 
                 if await click_captcha_checkbox(page):
-                    await handle_buster(page)
-                    await asyncio.sleep(5)
-                    await page.screenshot(path="final_diag.png")
-                    send_tg("📸 النتيجة النهائية:", "final_diag.png")
+                    await asyncio.sleep(3)
+                    await try_all_buster_methods(page)
                 else:
                     send_tg("❌ لم يظهر مربع الكابتشا")
 
         except Exception as e:
-            send_tg(f"🔥 خطأ غير متوقع: {e}")
+            send_tg(f"🔥 خطأ: {e}")
         finally:
             await context.close()
 

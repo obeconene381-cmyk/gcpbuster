@@ -5,8 +5,24 @@ import requests
 import re
 import shutil
 import random
+import subprocess
+import sys
+
+# --- تثبيت playwright-stealth تلقائياً ---
+def install_stealth():
+    try:
+        import playwright_stealth
+        return True
+    except ImportError:
+        print("📦 تثبيت playwright-stealth...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright-stealth", "--quiet"])
+        return True
+
+install_stealth()
+
+# الآن استيراد المكتبة بعد التثبيت
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async  # يجب تثبيتها: pip install playwright-stealth
+from playwright_stealth import stealth_async
 
 # --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
@@ -68,7 +84,6 @@ async def human_like_mouse_move(page, x, y):
     steps = random.randint(15, 25)
     for i in range(steps):
         t = i / steps
-        # منحنى بيزيه مكعب
         cpx1 = current_x + (x - current_x) * 0.3 + random.randint(-20, 20)
         cpy1 = current_y + (y - current_y) * 0.1 + random.randint(-20, 20)
         cpx2 = current_x + (x - current_x) * 0.7 + random.randint(-20, 20)
@@ -77,7 +92,6 @@ async def human_like_mouse_move(page, x, y):
         bezier_x = (1-t)**3 * current_x + 3*(1-t)**2*t * cpx1 + 3*(1-t)*t**2 * cpx2 + t**3 * x
         bezier_y = (1-t)**3 * current_y + 3*(1-t)**2*t * cpy1 + 3*(1-t)*t**2 * cpy2 + t**3 * y
         
-        # إضافة ارتعاش طفيف (tremor)
         jitter_x = random.randint(-2, 2)
         jitter_y = random.randint(-2, 2)
         
@@ -89,7 +103,6 @@ async def human_like_mouse_move(page, x, y):
 async def human_click(page, locator):
     """نقرة تشبه الإنسان مع scroll طبيعي وتأخيرات عشوائية"""
     try:
-        # Scroll تدريجي
         await locator.scroll_into_view_if_needed()
         await asyncio.sleep(random.uniform(0.3, 0.8))
         
@@ -97,14 +110,12 @@ async def human_click(page, locator):
         if not box:
             return False
             
-        # نقطة عشوائية داخل العنصر (ليس المركز بالضبط)
         x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
         y = box["y"] + box["height"] * random.uniform(0.3, 0.7)
         
         await human_like_mouse_move(page, x, y)
         await asyncio.sleep(random.uniform(0.1, 0.3))
         
-        # ضغط مع استمرار عشوائي (human click duration)
         await page.mouse.down()
         await asyncio.sleep(random.uniform(0.08, 0.15))
         await page.mouse.up()
@@ -164,11 +175,10 @@ async def click_captcha_checkbox(page):
     return False
 
 # ===============================================
-# 🔥 جميع طرق الضغط على Buster (محسّنة)
+# طرق Buster
 # ===============================================
 
 async def method_1_shadow_dom_click(page):
-    """الطريقة 1: البحث داخل Shadow DOM مع تحسينات Stealth"""
     send_tg("🎯 الطريقة 1: Shadow DOM Click")
     
     try:
@@ -200,7 +210,6 @@ async def method_1_shadow_dom_click(page):
     return False
 
 async def method_2_keyboard_shortcut(page):
-    """الطريقة 2: اختصار لوحة المفاتيح مع تأخيرات طبيعية"""
     send_tg("🎯 الطريقة 2: Keyboard Shortcut")
     
     try:
@@ -208,12 +217,7 @@ async def method_2_keyboard_shortcut(page):
         await iframe.locator('body').click()
         await asyncio.sleep(random.uniform(0.5, 1.5))
         
-        shortcuts = [
-            'Control+Shift+KeyS',
-            'Control+Shift+KeyA',
-            'Alt+Shift+KeyS',
-            'Control+Period',
-        ]
+        shortcuts = ['Control+Shift+KeyS', 'Control+Shift+KeyA', 'Alt+Shift+KeyS', 'Control+Period']
         
         for shortcut in shortcuts:
             await page.keyboard.press(shortcut, delay=random.randint(50, 150))
@@ -232,32 +236,23 @@ async def method_2_keyboard_shortcut(page):
     return False
 
 async def method_3_js_injection(page):
-    """الطريقة 3: حقن JavaScript مع إخفاء WebDriver"""
     send_tg("🎯 الطريقة 3: JavaScript Injection")
     
     script = """
     () => {
-        // إخفاء علامات Automation
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
         window.chrome = { runtime: {} };
         
-        // التحويل للصوت
         const audioBtn = document.querySelector('#recaptcha-audio-button, .rc-button-audio');
-        if (audioBtn) {
-            audioBtn.click();
-        }
+        if (audioBtn) audioBtn.click();
         
-        // البحث عن Buster
         const iframes = document.querySelectorAll('iframe');
         for (let iframe of iframes) {
             try {
                 const doc = iframe.contentDocument || iframe.contentWindow.document;
                 const buster = doc.querySelector('button[class*="buster"], [data-buster], button[title*="solve"]');
-                if (buster) {
-                    buster.click();
-                    return 'found_in_iframe';
-                }
+                if (buster) { buster.click(); return 'found_in_iframe'; }
             } catch(e) {}
         }
         
@@ -265,10 +260,7 @@ async def method_3_js_injection(page):
         for (let el of allElements) {
             if (el.shadowRoot) {
                 const buster = el.shadowRoot.querySelector('button[class*="buster"], [class*="solver"]');
-                if (buster) {
-                    buster.click();
-                    return 'found_in_shadow';
-                }
+                if (buster) { buster.click(); return 'found_in_shadow'; }
             }
         }
         
@@ -294,7 +286,6 @@ async def method_3_js_injection(page):
     return False
 
 async def method_4_dynamic_coordinates(page):
-    """الطريقة 4: إحداثيات ديناميكية مع حركة طبيعية"""
     send_tg("🎯 الطريقة 4: Dynamic Coordinates")
     
     try:
@@ -314,12 +305,7 @@ async def method_4_dynamic_coordinates(page):
             
             box = await iframe_el.bounding_box()
             
-            positions = [
-                (0.85, 0.75),
-                (0.90, 0.70),
-                (0.80, 0.80),
-                (0.88, 0.72),
-            ]
+            positions = [(0.85, 0.75), (0.90, 0.70), (0.80, 0.80), (0.88, 0.72)]
             
             for i, (px, py) in enumerate(positions):
                 x = box['x'] + (box['width'] * px)
@@ -344,7 +330,6 @@ async def method_4_dynamic_coordinates(page):
     return False
 
 async def method_5_visual_detection(page):
-    """الطريقة 5: كشف بصري باللون الأصفر"""
     send_tg("🎯 الطريقة 5: Visual Yellow Detection")
     
     try:
@@ -356,16 +341,7 @@ async def method_5_visual_detection(page):
                 iframes.forEach((iframe, idx) => {
                     const rect = iframe.getBoundingClientRect();
                     const marker = document.createElement('div');
-                    marker.style.cssText = `
-                        position: fixed;
-                        left: ${rect.left}px;
-                        top: ${rect.top}px;
-                        width: ${rect.width}px;
-                        height: ${rect.height}px;
-                        border: 3px solid red;
-                        z-index: 999999;
-                        pointer-events: none;
-                    `;
+                    marker.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;border:3px solid red;z-index:999999;pointer-events:none;`;
                     document.body.appendChild(marker);
                 });
             }
@@ -385,11 +361,7 @@ async def method_5_visual_detection(page):
             ]
             
             for i, (x, y) in enumerate(test_points):
-                await page.evaluate(f"""
-                    var d = document.createElement('div');
-                    d.style.cssText = 'position:fixed;left:{x-10}px;top:{y-10}px;width:20px;height:20px;background:yellow;border:2px solid red;z-index:999999;border-radius:50%;';
-                    document.body.appendChild(d);
-                """)
+                await page.evaluate(f"var d=document.createElement('div');d.style.cssText='position:fixed;left:{x-10}px;top:{y-10}px;width:20px;height:20px;background:yellow;border:2px solid red;z-index:999999;border-radius:50%;';document.body.appendChild(d);")
                 
                 await page.mouse.click(x, y)
                 await asyncio.sleep(random.uniform(3, 5))
@@ -406,7 +378,6 @@ async def method_5_visual_detection(page):
     return False
 
 async def method_6_extension_popup(page):
-    """الطريقة 6: فتح popup الإضافة"""
     send_tg("🎯 الطريقة 6: Extension Popup")
     
     try:
@@ -418,14 +389,7 @@ async def method_6_extension_popup(page):
         await page.goto(LAB_URL, timeout=60000)
         await asyncio.sleep(random.uniform(3, 5))
         
-        await page.evaluate("""
-            () => {
-                chrome.runtime.sendMessage('pkdpajiblgjahglcmbcggmmgnfmnmcgm', {action: 'solve'}, (response) => {
-                    console.log(response);
-                });
-            }
-        """)
-        
+        await page.evaluate("""() => { chrome.runtime.sendMessage('pkdpajiblgjahglcmbcggmmgnfmnmcgm', {action: 'solve'}, (response) => { console.log(response); }); }""")
         await asyncio.sleep(random.uniform(4, 6))
         
     except Exception as e:
@@ -440,7 +404,6 @@ async def method_6_extension_popup(page):
 # ===============================================
 
 async def try_all_buster_methods(page):
-    """تجربة جميع الطرق بالتسلسل"""
     send_tg("🚀 بدء تجربة جميع طرق Buster...")
     
     methods = [
@@ -490,7 +453,6 @@ async def run():
         return
 
     async with async_playwright() as p:
-        # إعدادات Stealth متقدمة
         args = [
             f"--disable-extensions-except={ext_path}", 
             f"--load-extension={ext_path}", 
@@ -498,7 +460,7 @@ async def run():
             "--no-sandbox",
             "--disable-web-security",
             "--disable-features=IsolateOrigins,site-per-process",
-            "--disable-blink-features=AutomationControlled",  # مهم جداً
+            "--disable-blink-features=AutomationControlled",
             "--window-size=1366,768",
             "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "--lang=en-US,en",
@@ -511,7 +473,7 @@ async def run():
         ]
         
         context = await p.chromium.launch_persistent_context(
-            "/tmp/chrome_stealth_v2",  # تغيير مسار الـ profile
+            "/tmp/chrome_stealth_v2",
             headless=False,
             args=args,
             proxy=WORKING_PROXY,
@@ -524,13 +486,11 @@ async def run():
         
         page = context.pages[0] if context.pages else await context.new_page()
         
-        # تطبيق Stealth على الصفحة
         await stealth_async(page)
         
         try:
             await context.add_cookies(MY_COOKIES)
             
-            # إخفاء webdriver إضافي
             await page.evaluate_on_new_document("""
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
                 Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });

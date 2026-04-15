@@ -16,6 +16,8 @@ def install_stealth():
     except ImportError:
         print("📦 تثبيت playwright-stealth...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright-stealth", "--quiet"])
+        import importlib
+        importlib.invalidate_caches()
         return True
 
 install_stealth()
@@ -23,8 +25,6 @@ install_stealth()
 # الآن استيراد المكتبة بعد التثبيت
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
-
-# --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
 CHAT_ID = "8092953314"
 LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"

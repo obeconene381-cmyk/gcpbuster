@@ -6,6 +6,7 @@ import re
 import shutil
 import random
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async  # يجب تثبيتها: pip install playwright-stealth
 
 # --- الإعدادات ---
 BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
@@ -45,7 +46,7 @@ async def setup_compiled_buster():
     zip_path = "buster_ready.zip"
     
     try:
-        send_tg("📥 جاري تحميل النسخة الرسمية الجاهزة للإضافة...")
+        send_tg("📥 جاري تحميل النسخة الرسمية...")
         r = requests.get(BUSTER_COMPILED_URL, timeout=30)
         with open(zip_path, "wb") as f: 
             f.write(r.content)
@@ -54,25 +55,60 @@ async def setup_compiled_buster():
             z.extractall(ext_dir)
             
         os.remove(zip_path)
-        send_tg(f"✅ تم تجهيز الإضافة الجاهزة في المسار: {ext_dir}")
+        send_tg(f"✅ تم تجهيز الإضافة")
         return ext_dir
     except Exception as e:
-        send_tg(f"❌ فشل تحميل الإضافة الجاهزة: {e}")
+        send_tg(f"❌ فشل تحميل الإضافة: {e}")
         return None
 
+async def human_like_mouse_move(page, x, y):
+    """حركة ماوس أكثر طبيعية مع منحنى بيزيه وارتعاش عشوائي"""
+    current_x, current_y = await page.evaluate("() => { return {x: window.mouseX || 0, y: window.mouseY || 0} }")
+    
+    steps = random.randint(15, 25)
+    for i in range(steps):
+        t = i / steps
+        # منحنى بيزيه مكعب
+        cpx1 = current_x + (x - current_x) * 0.3 + random.randint(-20, 20)
+        cpy1 = current_y + (y - current_y) * 0.1 + random.randint(-20, 20)
+        cpx2 = current_x + (x - current_x) * 0.7 + random.randint(-20, 20)
+        cpy2 = current_y + (y - current_y) * 0.9 + random.randint(-20, 20)
+        
+        bezier_x = (1-t)**3 * current_x + 3*(1-t)**2*t * cpx1 + 3*(1-t)*t**2 * cpx2 + t**3 * x
+        bezier_y = (1-t)**3 * current_y + 3*(1-t)**2*t * cpy1 + 3*(1-t)*t**2 * cpy2 + t**3 * y
+        
+        # إضافة ارتعاش طفيف (tremor)
+        jitter_x = random.randint(-2, 2)
+        jitter_y = random.randint(-2, 2)
+        
+        await page.mouse.move(bezier_x + jitter_x, bezier_y + jitter_y)
+        await asyncio.sleep(random.uniform(0.01, 0.04))
+    
+    await page.mouse.move(x, y)
+
 async def human_click(page, locator):
+    """نقرة تشبه الإنسان مع scroll طبيعي وتأخيرات عشوائية"""
     try:
+        # Scroll تدريجي
         await locator.scroll_into_view_if_needed()
+        await asyncio.sleep(random.uniform(0.3, 0.8))
+        
         box = await locator.bounding_box()
-        if box:
-            x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-            await page.mouse.move(x, y, steps=10)
-            await asyncio.sleep(0.2)
-            await page.mouse.down()
-            await asyncio.sleep(0.15)
-            await page.mouse.up()
-            return True
-        await locator.click(delay=200)
+        if not box:
+            return False
+            
+        # نقطة عشوائية داخل العنصر (ليس المركز بالضبط)
+        x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
+        y = box["y"] + box["height"] * random.uniform(0.3, 0.7)
+        
+        await human_like_mouse_move(page, x, y)
+        await asyncio.sleep(random.uniform(0.1, 0.3))
+        
+        # ضغط مع استمرار عشوائي (human click duration)
+        await page.mouse.down()
+        await asyncio.sleep(random.uniform(0.08, 0.15))
+        await page.mouse.up()
+        
         return True
     except: 
         return False
@@ -81,18 +117,18 @@ async def dismiss_credits_modal(page):
     try:
         btn = page.get_by_role("button", name=re.compile(r"Dismiss", re.I))
         if await btn.count() > 0 and await btn.first.is_visible():
-            await btn.first.click()
-            send_tg("✅ تم العثور على نافذة Credits Expiring وإغلاقها.")
-            await asyncio.sleep(2)
+            await human_click(page, btn.first)
+            send_tg("✅ تم إغلاق نافذة Credits")
+            await asyncio.sleep(random.uniform(2, 3))
             return True
             
         text_btn = page.locator("text=Dismiss")
         if await text_btn.count() > 0 and await text_btn.first.is_visible():
-            await text_btn.first.click()
-            send_tg("✅ تم إغلاق نافذة Credits Expiring.")
-            await asyncio.sleep(2)
+            await human_click(page, text_btn.first)
+            send_tg("✅ تم إغلاق نافذة Credits")
+            await asyncio.sleep(random.uniform(2, 3))
             return True
-    except Exception as e:
+    except: 
         pass
     return False
 
@@ -102,17 +138,17 @@ async def click_start_lab_button(page):
         try:
             btn = page.get_by_role("button", name=pattern).first
             if await btn.is_visible():
-                await btn.click(force=True)
+                await human_click(page, btn)
                 send_tg("✅ تم الضغط على Start Lab")
                 return True
         except: 
             pass
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.8, 1.5))
     return False
 
 async def click_captcha_checkbox(page):
     send_tg("🤛 البحث عن مربع الكابتشا...")
-    await asyncio.sleep(3)
+    await asyncio.sleep(random.uniform(2, 4))
     iframes = await page.locator('iframe[title*="reCAPTCHA"]').all()
     for iframe in iframes:
         try:
@@ -121,17 +157,18 @@ async def click_captcha_checkbox(page):
             if await checkbox.is_visible():
                 await human_click(page, checkbox)
                 send_tg("✅ تم الضغط على المربع")
+                await asyncio.sleep(random.uniform(2, 4))
                 return True
         except: 
             continue
     return False
 
 # ===============================================
-# 🔥 جميع طرق الضغط على Buster 🔥
+# 🔥 جميع طرق الضغط على Buster (محسّنة)
 # ===============================================
 
 async def method_1_shadow_dom_click(page):
-    """الطريقة 1: البحث داخل Shadow DOM"""
+    """الطريقة 1: البحث داخل Shadow DOM مع تحسينات Stealth"""
     send_tg("🎯 الطريقة 1: Shadow DOM Click")
     
     try:
@@ -139,20 +176,20 @@ async def method_1_shadow_dom_click(page):
         
         audio_btn = challenge_iframe.locator('#recaptcha-audio-button, .rc-button-audio')
         if await audio_btn.is_visible():
-            await audio_btn.click()
-            await asyncio.sleep(2)
+            await human_click(page, audio_btn)
+            await asyncio.sleep(random.uniform(2, 4))
             send_tg("🔊 تم التحويل للصوت")
         
         buster_btn = challenge_iframe.locator('button[title*="Buster"], button[class*="buster"], div[class*="buster"]').first
         
         if await buster_btn.is_visible(timeout=5000):
-            await buster_btn.click()
+            await human_click(page, buster_btn)
             send_tg("✅ تم الضغط على Buster (Shadow DOM)")
-            await asyncio.sleep(8)
+            await asyncio.sleep(random.uniform(6, 10))
             
             verify_btn = challenge_iframe.locator('#recaptcha-verify-button')
             if await verify_btn.is_visible():
-                await verify_btn.click()
+                await human_click(page, verify_btn)
             
             return True
     except Exception as e:
@@ -163,20 +200,25 @@ async def method_1_shadow_dom_click(page):
     return False
 
 async def method_2_keyboard_shortcut(page):
-    """الطريقة 2: اختصار لوحة المفاتيح"""
+    """الطريقة 2: اختصار لوحة المفاتيح مع تأخيرات طبيعية"""
     send_tg("🎯 الطريقة 2: Keyboard Shortcut")
     
     try:
         iframe = page.frame_locator('iframe[src*="recaptcha/api2/bframe"]').first
         await iframe.locator('body').click()
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.5))
         
-        shortcuts = ['Control+Shift+KeyS', 'Control+Shift+KeyA', 'Alt+Shift+KeyS', 'Control+Period']
+        shortcuts = [
+            'Control+Shift+KeyS',
+            'Control+Shift+KeyA',
+            'Alt+Shift+KeyS',
+            'Control+Period',
+        ]
         
         for shortcut in shortcuts:
-            await page.keyboard.press(shortcut)
+            await page.keyboard.press(shortcut, delay=random.randint(50, 150))
             send_tg(f"⌨️ جربت: {shortcut}")
-            await asyncio.sleep(3)
+            await asyncio.sleep(random.uniform(3, 5))
             
             if await page.locator('.recaptcha-checkbox-checked').is_visible():
                 send_tg(f"✅ نجح الاختصار: {shortcut}")
@@ -190,14 +232,23 @@ async def method_2_keyboard_shortcut(page):
     return False
 
 async def method_3_js_injection(page):
-    """الطريقة 3: حقن JavaScript"""
+    """الطريقة 3: حقن JavaScript مع إخفاء WebDriver"""
     send_tg("🎯 الطريقة 3: JavaScript Injection")
     
     script = """
     () => {
-        const audioBtn = document.querySelector('#recaptcha-audio-button, .rc-button-audio');
-        if (audioBtn) audioBtn.click();
+        // إخفاء علامات Automation
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        window.chrome = { runtime: {} };
         
+        // التحويل للصوت
+        const audioBtn = document.querySelector('#recaptcha-audio-button, .rc-button-audio');
+        if (audioBtn) {
+            audioBtn.click();
+        }
+        
+        // البحث عن Buster
         const iframes = document.querySelectorAll('iframe');
         for (let iframe of iframes) {
             try {
@@ -229,7 +280,7 @@ async def method_3_js_injection(page):
     try:
         result = await page.evaluate(script)
         send_tg(f"🔍 نتيجة JS: {result}")
-        await asyncio.sleep(8)
+        await asyncio.sleep(random.uniform(6, 10))
         
         if await page.locator('.recaptcha-checkbox-checked').is_visible():
             send_tg("✅ نجحت الطريقة 3")
@@ -243,7 +294,7 @@ async def method_3_js_injection(page):
     return False
 
 async def method_4_dynamic_coordinates(page):
-    """الطريقة 4: إحداثيات ديناميكية"""
+    """الطريقة 4: إحداثيات ديناميكية مع حركة طبيعية"""
     send_tg("🎯 الطريقة 4: Dynamic Coordinates")
     
     try:
@@ -258,23 +309,28 @@ async def method_4_dynamic_coordinates(page):
         audio_btn = frame.locator('#recaptcha-audio-button')
         
         if await audio_btn.is_visible():
-            await audio_btn.click()
-            await asyncio.sleep(2)
+            await human_click(page, audio_btn)
+            await asyncio.sleep(random.uniform(2, 4))
             
             box = await iframe_el.bounding_box()
             
-            positions = [(0.85, 0.75), (0.90, 0.70), (0.80, 0.80), (0.88, 0.72)]
+            positions = [
+                (0.85, 0.75),
+                (0.90, 0.70),
+                (0.80, 0.80),
+                (0.88, 0.72),
+            ]
             
             for i, (px, py) in enumerate(positions):
                 x = box['x'] + (box['width'] * px)
                 y = box['y'] + (box['height'] * py)
                 
-                await page.mouse.move(x, y)
+                await human_like_mouse_move(page, x, y)
                 await page.screenshot(path=f"method4_pos{i}.png")
                 send_tg(f"📍 تجربة الموقع {i+1}: {x:.0f},{y:.0f}", f"method4_pos{i}.png")
                 
                 await page.mouse.click(x, y)
-                await asyncio.sleep(5)
+                await asyncio.sleep(random.uniform(4, 6))
                 
                 if await page.locator('.recaptcha-checkbox-checked').is_visible():
                     send_tg(f"✅ نجحت الطريقة 4 عند الموقع {i+1}")
@@ -336,7 +392,7 @@ async def method_5_visual_detection(page):
                 """)
                 
                 await page.mouse.click(x, y)
-                await asyncio.sleep(3)
+                await asyncio.sleep(random.uniform(3, 5))
                 
                 if await page.locator('.recaptcha-checkbox-checked').is_visible():
                     send_tg(f"✅ نجحت الطريقة 5 عند النقطة {i+1}")
@@ -355,12 +411,12 @@ async def method_6_extension_popup(page):
     
     try:
         await page.goto("chrome-extension://pkdpajiblgjahglcmbcggmmgnfmnmcgm/src/options/index.html")
-        await asyncio.sleep(2)
+        await asyncio.sleep(random.uniform(2, 4))
         await page.screenshot(path="buster_options.png")
         send_tg("📸 إعدادات Buster:", "buster_options.png")
         
         await page.goto(LAB_URL, timeout=60000)
-        await asyncio.sleep(3)
+        await asyncio.sleep(random.uniform(3, 5))
         
         await page.evaluate("""
             () => {
@@ -370,7 +426,7 @@ async def method_6_extension_popup(page):
             }
         """)
         
-        await asyncio.sleep(5)
+        await asyncio.sleep(random.uniform(4, 6))
         
     except Exception as e:
         send_tg(f"❌ فشلت الطريقة 6: {e}")
@@ -380,21 +436,8 @@ async def method_6_extension_popup(page):
     return False
 
 # ===============================================
-# 🛡️ طريقة بسيطة لإخفاء Automation (بدون إفساد الصفحة)
+# الدالة الرئيسية للتجربة
 # ===============================================
-
-async def simple_stealth(page):
-    """إخفاء بسيط لا يؤثر على عمل الصفحة"""
-    try:
-        # فقط إخفاء webdriver - لا شيء آخر
-        await page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """)
-        send_tg("🛡️ تم تطبيق إخفاء بسيط")
-    except:
-        pass
 
 async def try_all_buster_methods(page):
     """تجربة جميع الطرق بالتسلسل"""
@@ -421,7 +464,7 @@ async def try_all_buster_methods(page):
         if not await page.locator('iframe[src*="recaptcha/api2/bframe"]').is_visible():
             send_tg("🔄 إعادة فتح الكابتشا...")
             await click_captcha_checkbox(page)
-            await asyncio.sleep(3)
+            await asyncio.sleep(random.uniform(3, 5))
         
         success = await method(page)
         results.append((name, success))
@@ -430,7 +473,7 @@ async def try_all_buster_methods(page):
             send_tg(f"🏆 النجاح بـ: {name}")
             break
         
-        await asyncio.sleep(2)
+        await asyncio.sleep(random.uniform(2, 4))
     
     report = "📊 تقرير النتائج:\n" + "\n".join([f"{'✅' if r else '❌'} {n}" for n, r in results])
     send_tg(report)
@@ -447,56 +490,81 @@ async def run():
         return
 
     async with async_playwright() as p:
+        # إعدادات Stealth متقدمة
+        args = [
+            f"--disable-extensions-except={ext_path}", 
+            f"--load-extension={ext_path}", 
+            "--headless=new", 
+            "--no-sandbox",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--disable-blink-features=AutomationControlled",  # مهم جداً
+            "--window-size=1366,768",
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "--lang=en-US,en",
+            "--disable-dev-shm-usage",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+        ]
+        
         context = await p.chromium.launch_persistent_context(
-            "/tmp/chrome_diag",
+            "/tmp/chrome_stealth_v2",  # تغيير مسار الـ profile
             headless=False,
-            args=[
-                f"--disable-extensions-except={ext_path}", 
-                f"--load-extension={ext_path}", 
-                "--headless=new", 
-                "--no-sandbox",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process"
-            ],
+            args=args,
             proxy=WORKING_PROXY,
-            viewport={'width': 1280, 'height': 720}
+            viewport={'width': 1366, 'height': 768},
+            locale='en-US',
+            timezone_id='America/New_York',
+            permissions=['notifications'],
+            color_scheme='light',
         )
-        page = context.pages[0]
+        
+        page = context.pages[0] if context.pages else await context.new_page()
+        
+        # تطبيق Stealth على الصفحة
+        await stealth_async(page)
         
         try:
-            # 🛡️ تطبيق إخفاء بسيط فقط
-            await simple_stealth(page)
-            
             await context.add_cookies(MY_COOKIES)
             
-            # فحص الإضافات
+            # إخفاء webdriver إضافي
+            await page.evaluate_on_new_document("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            """)
+            
             await page.goto("chrome://extensions/")
-            await asyncio.sleep(2)
+            await asyncio.sleep(random.uniform(1, 3))
             await page.screenshot(path="diag_extensions.png")
             send_tg("📸 الإضافات:", "diag_extensions.png")
             
-            # الدخول للاب
             await page.goto(LAB_URL, timeout=60000)
-            await asyncio.sleep(4)
+            await asyncio.sleep(random.uniform(3, 6))
             await dismiss_credits_modal(page)
             
             await page.screenshot(path="diag_lab_page.png")
             send_tg("🌐 صفحة اللاب:", "diag_lab_page.png")
             
-            # بدء اللاب
             if await click_start_lab_button(page):
-                await asyncio.sleep(5)
+                await asyncio.sleep(random.uniform(4, 7))
                 await page.screenshot(path="diag_after_start.png")
                 send_tg("📸 بعد Start Lab:", "diag_after_start.png")
                 
                 if await click_captcha_checkbox(page):
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(random.uniform(3, 5))
                     await try_all_buster_methods(page)
                 else:
                     send_tg("❌ لم يظهر مربع الكابتشا")
 
         except Exception as e:
             send_tg(f"🔥 خطأ: {e}")
+            import traceback
+            send_tg(f"🔥 تفاصيل: {traceback.format_exc()[:1000]}")
         finally:
             await context.close()
 

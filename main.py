@@ -4,43 +4,151 @@ import zipfile
 import requests
 import re
 import shutil
-import random
-import subprocess
-import sys
-
-# --- تثبيت playwright-stealth تلقائياً ---
-def install_stealth():
-    try:
-        import playwright_stealth
-        return True
-    except ImportError:
-        print("📦 تثبيت playwright-stealth...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright-stealth", "--quiet"])
-        import importlib
-        importlib.invalidate_caches()
-        return True
-
-install_stealth()
-
-# الآن استيراد المكتبة بعد التثبيت
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
-BOT_TOKEN = "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU"
-CHAT_ID = "8092953314"
-LAB_URL = "https://www.skills.google/focuses/19146?parent=catalog"
 
+# --- الإعدادات ---
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8676477338:AAHTkfqD5p2RV0-d8QetCY4Bs9RDgsaWFDU")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8092953314")
+LOG_BOT_TOKEN = os.environ.get("LOG_BOT_TOKEN", "6922699803:AAFsbWaPKQLixXrosTkr4rkz_PdGJg2ypx8")
+LOG_CHANNEL_ID = os.environ.get("LOG_CHANNEL_ID", "-1003781090454")
+
+REGION_OVERRIDE = os.environ.get("REGION_OVERRIDE", "")  
+DEFAULT_LAB_URL = "https://www.skills.google/focuses/41025?parent=catalog"
 BUSTER_COMPILED_URL = "https://github.com/dessant/buster/releases/download/v3.1.0/buster_captcha_solver_for_humans-3.1.0-chrome.zip"
 
-WORKING_PROXY = {
-    "server": "http://92.119.128.15:9996",
-    "username": "user376353",
-    "password": "y3ld6w"
-}
-
 MY_COOKIES = [
-    {"domain": ".skills.google", "name": "_ga", "value": "GA1.1.1438878037.1772447126", "path": "/"},
-    {"domain": "www.skills.google", "name": "_cvl-4_1_14_session", "value": "lQa%2FMnKdErx31nYRawt27XpphO7RO1Mod3%2FCk8T6PqZfkPZohBUhjBqhs2Mw1GIO229gr0KDHGkAp%2F9o7Blffpj%2BNy7YVlSwMKrQX3%2B0RxdyBzB0LU%2BFdcq5wLCPFWUPMhJNMngGjgVjse8JNXc1BO1j2FUpFQqvzAVGdPUShDJMshUZOva39naRS%2BVT%2BpBdaPE0I%2FgjsG6fC6KFeGqADXbUOQ36JiZQkoXYIjuKCxrOKwyaLKj7fFRebXiBduQKQIH3JK8bvcn0LkvK8BuvZ262zjAku4%2FkzRdFKfsfQMXrZStwGytxy1dqm%2FoQ6Lut8s9fnFVTGGcYIoJoxwba0Yx653S2FCemxd3GSCCqfGuNfuzRfNSCjsYvAeUmPdkQzepE80F3hbK15UUyM%2B2Puh3e4e%2FoovbnYf0xLZFGrxSpTcgJ5zb1FElGZ9LNFypWppJjbPlIySkS6X00pjko3fzmpi2TmUHvdBfPbn7ZmJbQ%2Fa8mQzvispzCN8GaAavsOZ%2FsD6xOt0%2FukYWX4oyXfRQg8AP8iZvYkj1iOvsbagPMKjp7utfL9DzDJ5n7LorhayjfSh9XLi1us38cm%2Fu8fzdbvLJn0DJ7koAN2V8V2KKLiGrU2H3e2z4pAFvTAmFENKac3LdIOOs2oNNj2Z8yF0iEnprV%2FzPeOb7eCcvFU66A6qb3f4SgUOTFVchEXizCrTx0%2FvdEQhoQG%2Boc3WXvnYtDbpPIuyt0BJSUda0e63hfWvQnww7DjHcdLtchLMoGYyOW0UktBRGkG3s%3D--TF35bd8CfnDqO%2BYr--Bp220SPOMrUj1y6NmvAiVw%3D%3D", "path": "/", "secure": True, "httpOnly": True},
-    {"domain": "www.skills.google", "name": "user.id", "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOVE13TmpJMyIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--3706d9f3abb091776145342b4e9be6e645941d44", "path": "/", "secure": True},
+[
+{
+    "domain": ".skills.google",
+    "expirationDate": 1813328341.888612,
+    "hostOnly": False,
+    "httpOnly": False,
+    "name": "_ga",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": False,
+    "session": False,
+    "storeId": "0",
+    "value": "GA1.1.1438878037.1772447126",
+    "id": 1
+},
+{
+    "domain": ".skills.google",
+    "expirationDate": 1813328342.148713,
+    "hostOnly": False,
+    "httpOnly": False,
+    "name": "_ga_2X30ZRBDSG",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": False,
+    "session": False,
+    "storeId": "0",
+    "value": "GS2.1.s1778768307$o186$g1$t1778768342$j25$l0$h0",
+    "id": 2
+},
+{
+    "domain": ".www.skills.google",
+    "expirationDate": 1813005691.77427,
+    "hostOnly": False,
+    "httpOnly": False,
+    "name": "_ga_2X30ZRBDSG",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": False,
+    "session": False,
+    "storeId": "0",
+    "value": "deleted",
+    "id": 3
+},
+{
+    "domain": "www.skills.google",
+    "hostOnly": True,
+    "httpOnly": True,
+    "name": "_cvl-4_1_14_session",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": True,
+    "session": True,
+    "storeId": "0",
+    "value": "UADl8C10SK9IV6LT0eg0wnDT7242PlnkPPjwGVzq8oBr1iA7osJUPHw3DjjoobeukjkoZCI6YTXY0rKbUT0GiCUXmzznLz2SAnZyz618ExiKoOwkCnkYSB2pnNfrElI4GzcCoBwZ6SVkThd78%2BlMPGefICCcYD%2FUxZMArBgY8AaXFW41lmRDRVGNgo0u2d9jmrx3UMhxrQgf%2BgKm4Wnj9cNRXTuIHOWRNSWRcWgL64yWCnsvvftx%2FA9MRrXFBTJrw9jR53ThfENdslsRlyffc%2FmH7w7TGITja4AndW%2FR4CDvURaK5JiTwnitW8Q4BVW0zh0sojTMafKc0Ncwf92ix3bWdLXx7TNY4oLgLFk8MLdm3oMoT17iOos0Zsus4ht5AoXCjFPdE%2FRTXZtR7AwTPFaQJ%2B%2Fmd50z1WD%2Fr%2B49nuWeY7FWDp8c%2BxG4utX6SvQDQp7ByK2khAVuNFjNMdGQeNQ5%2FSCrbTLQFxf4MtJ2GTwIoSc52oE7XkU3ajKYjbv6DrXX0RGoI3LC7JAJPe%2BbQbVr0HTz7xgDoN8mp5jbx58V4VSXBafe5oS2dvqEsGmCr%2B%2Bm6M7v%2BbVvqQeD8OP9NuSvz%2FFiXsPNmIp8f1e9tKxj8fNiOV8CUInIk5G09s3P8Sk2tEQgRSaf8yizNusouVnfrnuIk7pogWnXF%2FApNB%2Bu1KAZ8uCYdCvavHCLABfD1GTTlgZkpnVHKCpigUu4JbCg4LieO3dzmlVAEhSkC2fv9%2BKK1yKOMcj%2BJyGuWQI3ESAZVTVUKC%2BcUW%2B%2BrcOE%2Fe6V6iRL6%2BRDS7FYd5GpuH5phdWFcYuEM11EcT%2FfONCqlwuhibQ%2BhVi3095JNCg9ICXTcSyjtZDuScPSd%2F9iPCTGAiNddRoSa2ujfeaNkrf93Sf6u%2BrNLyKrfoFk2V1ZCfLklDw57pjUB2tJ3dGv8ME8Rgzbpt0DkoAT1BJfNuaxxkNcCgX1sjFC%2Brv%2FOIXrxBXP3zQrZQXDlqiqDOPNnDpam3dUF2QAzFPmFrBtknbcftJc--%2B76qjyj6rYlh%2B9jP--VVRm9fk18HK4qMLe0HeQuA%3D%3D",
+    "id": 4
+},
+{
+    "domain": "www.skills.google",
+    "expirationDate": 1813328299.094363,
+    "hostOnly": True,
+    "httpOnly": False,
+    "name": "auto_accept_organization",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": True,
+    "session": False,
+    "storeId": "0",
+    "value": "",
+    "id": 5
+},
+{
+    "domain": "www.skills.google",
+    "expirationDate": 1810304335,
+    "hostOnly": True,
+    "httpOnly": False,
+    "name": "browser.timezone",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": False,
+    "session": False,
+    "storeId": "0",
+    "value": "Africa/Algiers",
+    "id": 6
+},
+{
+    "domain": "www.skills.google",
+    "expirationDate": 1794302018,
+    "hostOnly": True,
+    "httpOnly": False,
+    "name": "g_state",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": False,
+    "session": False,
+    "storeId": "0",
+    "value": "{\"i_l\":0,\"i_ll\":1778750018786,\"i_e\":{\"enable_itp_optimization\":21},\"i_b\":\"Tx5aWTcjyGMaRuTm8R096WUmqzOhJRl4mPhhx0cAy9Y\",\"i_et\":1776159491027}",
+    "id": 7
+},
+{
+    "domain": "www.skills.google",
+    "hostOnly": True,
+    "httpOnly": False,
+    "name": "user.expires_at",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": True,
+    "session": True,
+    "storeId": "0",
+    "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6IklqSXdNall0TURVdE1UUlVNVEk2TVRnNk16TXVPVEl3TFRBME9qQXdJZz09IiwiZXhwIjpudWxsLCJwdXIiOiJjb29raWUudXNlci5leHBpcmVzX2F0In19--6a89c33363f8b5b86cb51505e8cd30601a63cc41",
+    "id": 8
+},
+{
+    "domain": "www.skills.google",
+    "hostOnly": True,
+    "httpOnly": False,
+    "name": "user.id",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": True,
+    "session": True,
+    "storeId": "0",
+    "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ik1UTTNOVE01TmpjMyIsImV4cCI6bnVsbCwicHVyIjoiY29va2llLnVzZXIuaWQifX0%3D--3977f98dc1c6fffcb49a4353fc4b1b054fa05451",
+    "id": 9
+}
+]
+]
+
+ERROR_INDICATORS = [
+    "error:", "invalid value for [--region]", "permission_denied", "quota exceeded", 
+    "quota limit", "unavailable", "failed to create service", "organization policy", 
+    "resourcelocations violated", "constraint constraints/gcp.resourcelocations", 
+    "deployment failed", "badrequest", "failed_precondition"
 ]
 
 def send_tg(msg, img=None):
@@ -48,11 +156,26 @@ def send_tg(msg, img=None):
     try:
         if img and os.path.exists(img):
             with open(img, "rb") as f: 
-                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg}, files={"photo": f}, timeout=30)
+                requests.post(url + "sendPhoto", data={"chat_id": CHAT_ID, "caption": msg, "parse_mode": "HTML"}, files={"photo": f}, timeout=30)
         else: 
-            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg}, timeout=30)
+            requests.post(url + "sendMessage", json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=30)
     except: 
         pass
+
+def send_log_to_channel(text):
+    if LOG_BOT_TOKEN and LOG_CHANNEL_ID:
+        requests.post(f"https://api.telegram.org/bot{LOG_BOT_TOKEN}/sendMessage", json={"chat_id": LOG_CHANNEL_ID, "text": text})
+
+def fix_cookies_for_playwright(cookies):
+    valid_samesite = ["Strict", "Lax", "None"]
+    cleaned_cookies = []
+    for cookie in cookies:
+        c = cookie.copy()
+        if c.get("sameSite") not in valid_samesite:
+            if "sameSite" in c:
+                del c["sameSite"] 
+        cleaned_cookies.append(c)
+    return cleaned_cookies
 
 async def setup_compiled_buster():
     ext_dir = os.path.abspath("buster_compiled_ext")
@@ -60,66 +183,27 @@ async def setup_compiled_buster():
         shutil.rmtree(ext_dir)
     os.makedirs(ext_dir)
     zip_path = "buster_ready.zip"
-    
     try:
-        send_tg("📥 جاري تحميل النسخة الرسمية...")
+        send_tg("📥 جاري تحميل النسخة الرسمية للإضافة...")
         r = requests.get(BUSTER_COMPILED_URL, timeout=30)
         with open(zip_path, "wb") as f: 
             f.write(r.content)
-        
         with zipfile.ZipFile(zip_path, 'r') as z: 
             z.extractall(ext_dir)
-            
         os.remove(zip_path)
-        send_tg(f"✅ تم تجهيز الإضافة")
+        send_tg(f"✅ تم تجهيز الإضافة بنجاح")
         return ext_dir
     except Exception as e:
         send_tg(f"❌ فشل تحميل الإضافة: {e}")
         return None
 
-async def human_like_mouse_move(page, x, y):
-    """حركة ماوس أكثر طبيعية مع منحنى بيزيه وارتعاش عشوائي"""
-    current_x, current_y = await page.evaluate("() => { return {x: window.mouseX || 0, y: window.mouseY || 0} }")
-    
-    steps = random.randint(15, 25)
-    for i in range(steps):
-        t = i / steps
-        cpx1 = current_x + (x - current_x) * 0.3 + random.randint(-20, 20)
-        cpy1 = current_y + (y - current_y) * 0.1 + random.randint(-20, 20)
-        cpx2 = current_x + (x - current_x) * 0.7 + random.randint(-20, 20)
-        cpy2 = current_y + (y - current_y) * 0.9 + random.randint(-20, 20)
-        
-        bezier_x = (1-t)**3 * current_x + 3*(1-t)**2*t * cpx1 + 3*(1-t)*t**2 * cpx2 + t**3 * x
-        bezier_y = (1-t)**3 * current_y + 3*(1-t)**2*t * cpy1 + 3*(1-t)*t**2 * cpy2 + t**3 * y
-        
-        jitter_x = random.randint(-2, 2)
-        jitter_y = random.randint(-2, 2)
-        
-        await page.mouse.move(bezier_x + jitter_x, bezier_y + jitter_y)
-        await asyncio.sleep(random.uniform(0.01, 0.04))
-    
-    await page.mouse.move(x, y)
-
+# ===============================================
+# 1. دوال تخطي اللاب والكابتشا واستخراج الكونسول
+# ===============================================
 async def human_click(page, locator):
-    """نقرة تشبه الإنسان مع scroll طبيعي وتأخيرات عشوائية"""
     try:
         await locator.scroll_into_view_if_needed()
-        await asyncio.sleep(random.uniform(0.3, 0.8))
-        
-        box = await locator.bounding_box()
-        if not box:
-            return False
-            
-        x = box["x"] + box["width"] * random.uniform(0.3, 0.7)
-        y = box["y"] + box["height"] * random.uniform(0.3, 0.7)
-        
-        await human_like_mouse_move(page, x, y)
-        await asyncio.sleep(random.uniform(0.1, 0.3))
-        
-        await page.mouse.down()
-        await asyncio.sleep(random.uniform(0.08, 0.15))
-        await page.mouse.up()
-        
+        await locator.click(force=True, delay=200)
         return True
     except: 
         return False
@@ -128,16 +212,8 @@ async def dismiss_credits_modal(page):
     try:
         btn = page.get_by_role("button", name=re.compile(r"Dismiss", re.I))
         if await btn.count() > 0 and await btn.first.is_visible():
-            await human_click(page, btn.first)
-            send_tg("✅ تم إغلاق نافذة Credits")
-            await asyncio.sleep(random.uniform(2, 3))
-            return True
-            
-        text_btn = page.locator("text=Dismiss")
-        if await text_btn.count() > 0 and await text_btn.first.is_visible():
-            await human_click(page, text_btn.first)
-            send_tg("✅ تم إغلاق نافذة Credits")
-            await asyncio.sleep(random.uniform(2, 3))
+            await btn.first.click()
+            await asyncio.sleep(2)
             return True
     except: 
         pass
@@ -149,17 +225,17 @@ async def click_start_lab_button(page):
         try:
             btn = page.get_by_role("button", name=pattern).first
             if await btn.is_visible():
-                await human_click(page, btn)
+                await btn.click(force=True)
                 send_tg("✅ تم الضغط على Start Lab")
                 return True
         except: 
             pass
-        await asyncio.sleep(random.uniform(0.8, 1.5))
+        await asyncio.sleep(1)
     return False
 
 async def click_captcha_checkbox(page):
-    send_tg("🤛 البحث عن مربع الكابتشا...")
-    await asyncio.sleep(random.uniform(2, 4))
+    send_tg("🤛 البحث عن مربع الكابتشا الرئيسي...")
+    await asyncio.sleep(3)
     iframes = await page.locator('iframe[title*="reCAPTCHA"]').all()
     for iframe in iframes:
         try:
@@ -167,366 +243,451 @@ async def click_captcha_checkbox(page):
             checkbox = frame_content.locator('.recaptcha-checkbox-border').first
             if await checkbox.is_visible():
                 await human_click(page, checkbox)
-                send_tg("✅ تم الضغط على المربع")
-                await asyncio.sleep(random.uniform(2, 4))
+                send_tg("✅ تم الضغط على مربع أنا لست برنامج روبوت")
                 return True
         except: 
             continue
     return False
 
-# ===============================================
-# طرق Buster
-# ===============================================
-
-async def method_1_shadow_dom_click(page):
-    send_tg("🎯 الطريقة 1: Shadow DOM Click")
-    
+async def method_1_direct_click(page):
+    send_tg("🎯 محاولة النقر المباشر على الشخص الأصفر...")
     try:
         challenge_iframe = page.frame_locator('iframe[src*="recaptcha/api2/bframe"]').first
         
-        audio_btn = challenge_iframe.locator('#recaptcha-audio-button, .rc-button-audio')
-        if await audio_btn.is_visible():
-            await human_click(page, audio_btn)
-            await asyncio.sleep(random.uniform(2, 4))
-            send_tg("🔊 تم التحويل للصوت")
+        audio_btn = challenge_iframe.locator('#recaptcha-audio-button')
+        if await audio_btn.is_visible(timeout=5000):
+            await audio_btn.click(force=True) 
+            await asyncio.sleep(2)
+            send_tg("🔊 تم التحويل لتحدي الصوت")
         
-        buster_btn = challenge_iframe.locator('button[title*="Buster"], button[class*="buster"], div[class*="buster"]').first
+        buster_btn = challenge_iframe.locator('.help-button-holder, button[title*="Solve the challenge"], button[title*="Buster"]').first
         
         if await buster_btn.is_visible(timeout=5000):
-            await human_click(page, buster_btn)
-            send_tg("✅ تم الضغط على Buster (Shadow DOM)")
-            await asyncio.sleep(random.uniform(6, 10))
+            await buster_btn.click(force=True)
+            send_tg("✅ تم الضغط على الشخص الأصفر بنجاح!")
+            await asyncio.sleep(8)
             
-            verify_btn = challenge_iframe.locator('#recaptcha-verify-button')
-            if await verify_btn.is_visible():
-                await human_click(page, verify_btn)
-            
+            try:
+                verify_btn = challenge_iframe.locator('#recaptcha-verify-button')
+                is_disabled = await verify_btn.evaluate("node => node.disabled")
+                if not is_disabled and await verify_btn.is_visible():
+                    await verify_btn.evaluate("node => node.click()")
+            except Exception:
+                pass 
+                
             return True
-    except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 1: {e}")
-    
-    await page.screenshot(path="method1_shadow_dom.png")
-    send_tg("📸 نتيجة الطريقة 1:", "method1_shadow_dom.png")
-    return False
-
-async def method_2_keyboard_shortcut(page):
-    send_tg("🎯 الطريقة 2: Keyboard Shortcut")
-    
-    try:
-        iframe = page.frame_locator('iframe[src*="recaptcha/api2/bframe"]').first
-        await iframe.locator('body').click()
-        await asyncio.sleep(random.uniform(0.5, 1.5))
-        
-        shortcuts = ['Control+Shift+KeyS', 'Control+Shift+KeyA', 'Alt+Shift+KeyS', 'Control+Period']
-        
-        for shortcut in shortcuts:
-            await page.keyboard.press(shortcut, delay=random.randint(50, 150))
-            send_tg(f"⌨️ جربت: {shortcut}")
-            await asyncio.sleep(random.uniform(3, 5))
-            
-            if await page.locator('.recaptcha-checkbox-checked').is_visible():
-                send_tg(f"✅ نجح الاختصار: {shortcut}")
-                return True
-        
-    except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 2: {e}")
-    
-    await page.screenshot(path="method2_keyboard.png")
-    send_tg("📸 نتيجة الطريقة 2:", "method2_keyboard.png")
-    return False
-
-async def method_3_js_injection(page):
-    send_tg("🎯 الطريقة 3: JavaScript Injection")
-    
-    script = """
-    () => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-        window.chrome = { runtime: {} };
-        
-        const audioBtn = document.querySelector('#recaptcha-audio-button, .rc-button-audio');
-        if (audioBtn) audioBtn.click();
-        
-        const iframes = document.querySelectorAll('iframe');
-        for (let iframe of iframes) {
-            try {
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                const buster = doc.querySelector('button[class*="buster"], [data-buster], button[title*="solve"]');
-                if (buster) { buster.click(); return 'found_in_iframe'; }
-            } catch(e) {}
-        }
-        
-        const allElements = document.querySelectorAll('*');
-        for (let el of allElements) {
-            if (el.shadowRoot) {
-                const buster = el.shadowRoot.querySelector('button[class*="buster"], [class*="solver"]');
-                if (buster) { buster.click(); return 'found_in_shadow'; }
-            }
-        }
-        
-        window.postMessage({type: 'BUSTER_SOLVE'}, '*');
-        return 'not_found';
-    }
-    """
-    
-    try:
-        result = await page.evaluate(script)
-        send_tg(f"🔍 نتيجة JS: {result}")
-        await asyncio.sleep(random.uniform(6, 10))
-        
-        if await page.locator('.recaptcha-checkbox-checked').is_visible():
-            send_tg("✅ نجحت الطريقة 3")
-            return True
+        else:
+            send_tg("⚠️ لم يتم العثور على زر الشخص الأصفر، يبدو أن الإضافة لم تظهر.")
             
     except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 3: {e}")
-    
-    await page.screenshot(path="method3_js.png")
-    send_tg("📸 نتيجة الطريقة 3:", "method3_js.png")
+        send_tg(f"❌ فشل أثناء محاولة النقر: {e}")
     return False
-
-async def method_4_dynamic_coordinates(page):
-    send_tg("🎯 الطريقة 4: Dynamic Coordinates")
-    
-    try:
-        iframe_el = page.locator('iframe[src*="recaptcha/api2/bframe"]').first
-        await iframe_el.wait_for(state='visible', timeout=10000)
-        
-        box = await iframe_el.bounding_box()
-        if not box:
-            return False
-        
-        frame = iframe_el.content_frame
-        audio_btn = frame.locator('#recaptcha-audio-button')
-        
-        if await audio_btn.is_visible():
-            await human_click(page, audio_btn)
-            await asyncio.sleep(random.uniform(2, 4))
-            
-            box = await iframe_el.bounding_box()
-            
-            positions = [(0.85, 0.75), (0.90, 0.70), (0.80, 0.80), (0.88, 0.72)]
-            
-            for i, (px, py) in enumerate(positions):
-                x = box['x'] + (box['width'] * px)
-                y = box['y'] + (box['height'] * py)
-                
-                await human_like_mouse_move(page, x, y)
-                await page.screenshot(path=f"method4_pos{i}.png")
-                send_tg(f"📍 تجربة الموقع {i+1}: {x:.0f},{y:.0f}", f"method4_pos{i}.png")
-                
-                await page.mouse.click(x, y)
-                await asyncio.sleep(random.uniform(4, 6))
-                
-                if await page.locator('.recaptcha-checkbox-checked').is_visible():
-                    send_tg(f"✅ نجحت الطريقة 4 عند الموقع {i+1}")
-                    return True
-        
-    except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 4: {e}")
-    
-    await page.screenshot(path="method4_final.png")
-    send_tg("📸 نتيجة الطريقة 4:", "method4_final.png")
-    return False
-
-async def method_5_visual_detection(page):
-    send_tg("🎯 الطريقة 5: Visual Yellow Detection")
-    
-    try:
-        await page.screenshot(path="full_page.png", full_page=False)
-        
-        await page.evaluate("""
-            () => {
-                const iframes = document.querySelectorAll('iframe[src*="recaptcha"]');
-                iframes.forEach((iframe, idx) => {
-                    const rect = iframe.getBoundingClientRect();
-                    const marker = document.createElement('div');
-                    marker.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;border:3px solid red;z-index:999999;pointer-events:none;`;
-                    document.body.appendChild(marker);
-                });
-            }
-        """)
-        
-        await page.screenshot(path="method5_marked.png")
-        send_tg("📸 علامات على مناطق reCAPTCHA:", "method5_marked.png")
-        
-        iframe_el = page.locator('iframe[src*="recaptcha/api2/bframe"]').first
-        box = await iframe_el.bounding_box()
-        
-        if box:
-            test_points = [
-                (box['x'] + box['width'] - 45, box['y'] + box['height'] - 100),
-                (box['x'] + box['width'] - 50, box['y'] + box['height'] - 90),
-                (box['x'] + box['width'] - 40, box['y'] + box['height'] - 110),
-            ]
-            
-            for i, (x, y) in enumerate(test_points):
-                await page.evaluate(f"var d=document.createElement('div');d.style.cssText='position:fixed;left:{x-10}px;top:{y-10}px;width:20px;height:20px;background:yellow;border:2px solid red;z-index:999999;border-radius:50%;';document.body.appendChild(d);")
-                
-                await page.mouse.click(x, y)
-                await asyncio.sleep(random.uniform(3, 5))
-                
-                if await page.locator('.recaptcha-checkbox-checked').is_visible():
-                    send_tg(f"✅ نجحت الطريقة 5 عند النقطة {i+1}")
-                    return True
-        
-    except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 5: {e}")
-    
-    await page.screenshot(path="method5_final.png")
-    send_tg("📸 نتيجة الطريقة 5:", "method5_final.png")
-    return False
-
-async def method_6_extension_popup(page):
-    send_tg("🎯 الطريقة 6: Extension Popup")
-    
-    try:
-        await page.goto("chrome-extension://pkdpajiblgjahglcmbcggmmgnfmnmcgm/src/options/index.html")
-        await asyncio.sleep(random.uniform(2, 4))
-        await page.screenshot(path="buster_options.png")
-        send_tg("📸 إعدادات Buster:", "buster_options.png")
-        
-        await page.goto(LAB_URL, timeout=60000)
-        await asyncio.sleep(random.uniform(3, 5))
-        
-        await page.evaluate("""() => { chrome.runtime.sendMessage('pkdpajiblgjahglcmbcggmmgnfmnmcgm', {action: 'solve'}, (response) => { console.log(response); }); }""")
-        await asyncio.sleep(random.uniform(4, 6))
-        
-    except Exception as e:
-        send_tg(f"❌ فشلت الطريقة 6: {e}")
-    
-    await page.screenshot(path="method6_popup.png")
-    send_tg("📸 نتيجة الطريقة 6:", "method6_popup.png")
-    return False
-
-# ===============================================
-# الدالة الرئيسية للتجربة
-# ===============================================
 
 async def try_all_buster_methods(page):
-    send_tg("🚀 بدء تجربة جميع طرق Buster...")
+    send_tg("🚀 بدء عملية حل الكابتشا...")
+    if await page.locator('.recaptcha-checkbox-checked').is_visible():
+        send_tg("✅ تم الحل بالفعل مبكراً!")
+        return True
     
-    methods = [
-        ("Shadow DOM", method_1_shadow_dom_click),
-        ("Keyboard Shortcut", method_2_keyboard_shortcut),
-        ("JavaScript Injection", method_3_js_injection),
-        ("Dynamic Coordinates", method_4_dynamic_coordinates),
-        ("Visual Detection", method_5_visual_detection),
-        ("Extension Popup", method_6_extension_popup),
-    ]
+    if not await page.locator('iframe[src*="recaptcha/api2/bframe"]').is_visible():
+        send_tg("🔄 إعادة فتح الكابتشا لأنها اختفت...")
+        await click_captcha_checkbox(page)
+        await asyncio.sleep(3)
     
-    results = []
-    
-    for name, method in methods:
-        send_tg(f"\n{'='*20}\n🧪 تجربة: {name}\n{'='*20}")
-        
-        if await page.locator('.recaptcha-checkbox-checked').is_visible():
-            send_tg("✅ تم الحل بالفعل!")
-            break
-        
-        if not await page.locator('iframe[src*="recaptcha/api2/bframe"]').is_visible():
-            send_tg("🔄 إعادة فتح الكابتشا...")
-            await click_captcha_checkbox(page)
-            await asyncio.sleep(random.uniform(3, 5))
-        
-        success = await method(page)
-        results.append((name, success))
-        
-        if success:
-            send_tg(f"🏆 النجاح بـ: {name}")
-            break
-        
-        await asyncio.sleep(random.uniform(2, 4))
-    
-    report = "📊 تقرير النتائج:\n" + "\n".join([f"{'✅' if r else '❌'} {n}" for n, r in results])
-    send_tg(report)
-    
-    await page.screenshot(path="final_result.png")
-    send_tg("📸 الصورة النهائية:", "final_result.png")
-    
-    return any([r for _, r in results])
+    success = await method_1_direct_click(page)
+    return success
 
-async def run():
-    send_tg("🚀 بدء المهمة...")
+async def click_launch_with_credits_aggressive(page):
+    send_tg("⏳ جاري البحث عن زر Launch with 5 Credits...")
+    for _ in range(15):
+        try:
+            js_success = await page.evaluate('''() => {
+                let elements = Array.from(document.querySelectorAll('*'));
+                let target = elements.find(e => e.textContent && e.textContent.trim() === 'Launch with 5 Credits');
+                if(target) {
+                    target.click();
+                    return true;
+                }
+                return false;
+            }''')
+            if js_success:
+                send_tg("✅ تم الضغط على Launch with 5 Credits بنجاح (طريقة JS)!")
+                return True
+
+            xpath_locator = page.locator("xpath=//*[text()='Launch with 5 Credits']").first
+            if await xpath_locator.is_visible():
+                await xpath_locator.click(force=True)
+                send_tg("✅ تم الضغط على Launch with 5 Credits بنجاح (طريقة XPath)!")
+                return True
+
+            text_locator = page.locator("text=Launch with 5 Credits").first
+            if await text_locator.is_visible():
+                await text_locator.click(force=True)
+                send_tg("✅ تم الضغط على Launch with 5 Credits بنجاح (طريقة Text)!")
+                return True
+        except Exception:
+            pass 
+        await asyncio.sleep(1)
+
+    screenshot_path = "debug_credits_button.png"
+    await page.screenshot(path=screenshot_path)
+    send_tg("⚠️ ما زال يعجز عن إيجاد الزر، انظر الصورة:", screenshot_path)
+    return False
+
+async def get_cloud_console_link(page):
+    send_tg("⏳ جاري انتظار ظهور زر 'Open Google Cloud console' واستخراج الرابط...")
+    try:
+        btn = page.locator("text=Open Google Cloud console").first
+        await btn.wait_for(state="visible", timeout=15000)
+        
+        link = await btn.get_attribute("href")
+        if not link:
+            link = await page.evaluate('''() => {
+                let elements = Array.from(document.querySelectorAll('*'));
+                let target = elements.find(e => e.textContent && e.textContent.includes('Open Google Cloud console'));
+                if (target) {
+                    return target.getAttribute('href') || 
+                           (target.parentElement && target.parentElement.getAttribute('href')) || 
+                           (target.shadowRoot && target.shadowRoot.querySelector('a') && target.shadowRoot.querySelector('a').getAttribute('href'));
+                }
+                return null;
+            }''')
+
+        if link:
+            success_msg = f"🎉 مبروك! تم بدء اللاب بنجاح.\n\n🔗 رابط الكونسول:\n{link}"
+            send_tg(success_msg)
+            return link
+        else:
+            send_tg("⚠️ ظهر الزر لكن لم نتمكن من سحب الرابط (href) منه.")
+            
+    except Exception as e:
+        error_msg = "⚠️ فشل العثور على الزر بعد الانتظار."
+        try:
+            await page.screenshot(path="debug_console_link.png")
+            send_tg(error_msg, "debug_console_link.png")
+        except:
+            send_tg(error_msg + f"\nالخطأ: {e}")
+    return None
+
+# ===============================================
+# 2. دوال تنفيذ أوامر الـ Cloud Shell والـ App Run
+# ===============================================
+async def click_button_by_text_anywhere(page, text, exact=True, timeout_loop=120, post_click_wait=3):
+    pattern = re.compile(rf"^\s*{re.escape(text)}\s*$", re.I) if exact else re.compile(re.escape(text), re.I)
+    async def _post_click_stabilize():
+        try: await page.wait_for_load_state("domcontentloaded", timeout=2000)
+        except: pass
+        await asyncio.sleep(post_click_wait)
+    for _ in range(timeout_loop):
+        for target in [page] + list(page.frames):
+            try:
+                btns = target.get_by_role("button", name=pattern)
+                for i in range(await btns.count() - 1, -1, -1):
+                    b = btns.nth(i)
+                    if await b.is_visible() and await b.is_enabled():
+                        await b.scroll_into_view_if_needed(timeout=1000); await b.click(timeout=3000, force=True); await _post_click_stabilize(); return True
+            except: pass
+        await asyncio.sleep(1)
+    return False
+
+async def try_click_terms_checkbox(page):
+    terms_regex = re.compile(r"i agree to the google cloud platform", re.I)
+    for _ in range(2):
+        for target in [page] + list(page.frames):
+            try:
+                cbs = target.get_by_role("checkbox")
+                for i in range(await cbs.count()):
+                    cb = cbs.nth(i)
+                    if await cb.is_visible(): await cb.click(timeout=1500, force=True); return True
+                locs = target.locator("label, div, span, [role='checkbox']").filter(has_text=terms_regex)
+                for i in range(await locs.count()):
+                    el = locs.nth(i)
+                    if await el.is_visible(): await el.click(timeout=1500, force=True); return True
+            except: pass
+        await asyncio.sleep(0.5)
+    return False
+
+async def get_cloudshell_frame(page):
+    for _ in range(60):
+        for f in page.frames:
+            if "shell.cloud.google.com" in (f.url or "").lower() or "embeddedcloudshell" in (f.url or "").lower(): return f
+        await asyncio.sleep(1)
+    return None
+
+async def wait_for_cloud_shell_prompt(page, timeout_loop=180):
+    prompt_patterns = [r"\$\s*$", r"cloudshell:~", r"student_.*@cloudshell", r"welcome to cloud shell"]
+    for _ in range(timeout_loop):
+        f = await get_cloudshell_frame(page)
+        if f:
+            try:
+                txt = await f.inner_text("body")
+                if any(re.search(pat, txt, re.I | re.M) for pat in prompt_patterns): return True
+            except: pass
+        await asyncio.sleep(1)
+    return False
+
+async def focus_terminal_near_prompt(page, timeout_loop=60):
+    for _ in range(timeout_loop):
+        f = await get_cloudshell_frame(page)
+        if f:
+            for sel in ["textarea.xterm-helper-textarea", "textarea", "div.xterm", "div.xterm-screen", "canvas"]:
+                try:
+                    loc = f.locator(sel).first
+                    if await loc.count() > 0 and await loc.is_visible():
+                        await loc.click(timeout=1500, force=True)
+                        box = await loc.bounding_box()
+                        if box: await page.mouse.click(box["x"] + 40, box["y"] + max(10, box["height"] - 20))
+                        return True
+                except: pass
+        await asyncio.sleep(1)
+    return False
+
+async def paste_command_and_run(page, command, timeout_verify=5):
+    await focus_terminal_near_prompt(page, timeout_loop=30)
+    f = await get_cloudshell_frame(page)
+    async def _paste_into_focused():
+        try:
+            f2 = await get_cloudshell_frame(page)
+            if f2:
+                await f2.evaluate("""(text) => {
+                    const ta = document.querySelector('textarea.xterm-helper-textarea');
+                    if (!ta) throw new Error('no xterm-helper-textarea');
+                    ta.focus();
+                    const dt = new DataTransfer();
+                    dt.setData('text/plain', text);
+                    const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true });
+                    ta.dispatchEvent(ev);
+                }""", command)
+                return
+        except Exception:
+            pass
+        await page.keyboard.insert_text(command)
+        
+    if f:
+        try:
+            ta = f.locator("textarea.xterm-helper-textarea").first
+            if await ta.count() > 0:
+                await ta.focus()
+                await asyncio.sleep(0.2)
+                await _paste_into_focused()
+            else:
+                await _paste_into_focused()
+        except Exception:
+            await _paste_into_focused()
+    else:
+        await _paste_into_focused()
+        
+    await asyncio.sleep(0.8)
+    
+    try:
+        if f:
+            try:
+                ta = f.locator("textarea.xterm-helper-textarea").first
+                if await ta.count() > 0:
+                    await ta.focus()
+                    await asyncio.sleep(0.2)
+            except Exception:
+                pass
+        await page.keyboard.press("Enter")
+        return True
+    except Exception:
+        return False
+
+async def wait_for_yes_no_prompt(page, timeout_loop=3):
+    patterns = [r"\[y\/n\]", r"\(y\/n\)", r"\[y\/N\]", r"Do you want to continue", r"continue\?\s*$"]
+    for _ in range(timeout_loop):
+        f = await get_cloudshell_frame(page)
+        for target in ([f] if f else []) + [fr for fr in page.frames if fr != f] + [page]:
+            try:
+                txt = await target.inner_text("body")
+                if any(re.search(p, txt, re.I | re.M) for p in patterns): return True
+            except: pass
+        await asyncio.sleep(1)
+    return False
+
+async def type_short_answer_only(page, answer_text="y"):
+    await focus_terminal_near_prompt(page, timeout_loop=20)
+    f = await get_cloudshell_frame(page)
+    try:
+        if f and await f.locator("textarea.xterm-helper-textarea").first.count() > 0:
+            await f.locator("textarea.xterm-helper-textarea").first.focus(); await asyncio.sleep(0.2); await f.locator("textarea.xterm-helper-textarea").first.type(answer_text, delay=50)
+        else: await page.keyboard.insert_text(answer_text)
+    except: await page.keyboard.type(answer_text, delay=50)
+    await asyncio.sleep(0.4)
+    return True
+
+# ===============================================
+# 3. العقل المدبر (التشغيل المتكامل)
+# ===============================================
+async def run_full_pipeline():
+    # اختيار الرابط: إن وجد في الـ ENV فهو نظام يدوي، إن لم يوجد يستخدم التلقائي.
+    input_lab_url = os.environ.get("LAB_URL", "").strip()
+    target_lab_url = input_lab_url if input_lab_url else DEFAULT_LAB_URL
+
+    send_tg("🚀 بدء عملية إنشاء اللاب ونشر السيرفر...")
+    
     ext_path = await setup_compiled_buster()
-    if not ext_path: 
-        return
+    if not ext_path: return
+
+    deploy_cmd_template = (
+        "gcloud run deploy my-app \\\n"
+        "  --image=docker.io/nkka404/vless-ws:latest \\\n"
+        "  --platform=managed \\\n"
+        "  --allow-unauthenticated \\\n"
+        "  --port=8080 \\\n"
+        "  --cpu=2 \\\n"
+        "  --memory=4Gi \\\n"
+        "  --concurrency=1000 \\\n"
+        "  --timeout=3600 \\\n"
+        "  --min-instances=2 \\\n"
+        "  --max-instances=8 \\\n"
+        "  --execution-environment=gen2 \\\n"
+        "  --cpu-boost \\\n"
+        "  --region={REGION}"
+    )
+    
+    if REGION_OVERRIDE and REGION_OVERRIDE.strip():
+        regions = [REGION_OVERRIDE.strip()]
+    else:
+        regions = [
+            "europe-west12", "europe-west1", "europe-west4", 
+            "us-west1", "us-central1", "us-east1"
+        ]
+
+    deploy_wait_loops = 20
 
     async with async_playwright() as p:
-        args = [
-            f"--disable-extensions-except={ext_path}", 
-            f"--load-extension={ext_path}", 
-            "--headless=new", 
-            "--no-sandbox",
-            "--disable-web-security",
-            "--disable-features=IsolateOrigins,site-per-process",
-            "--disable-blink-features=AutomationControlled",
-            "--window-size=1366,768",
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "--lang=en-US,en",
-            "--disable-dev-shm-usage",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-background-timer-throttling",
-            "--disable-renderer-backgrounding",
-            "--disable-backgrounding-occluded-windows",
-        ]
-        
         context = await p.chromium.launch_persistent_context(
-            "/tmp/chrome_stealth_v2",
+            os.path.abspath("chrome_profile"),
             headless=False,
-            args=args,
-            proxy=WORKING_PROXY,
-            viewport={'width': 1366, 'height': 768},
-            locale='en-US',
-            timezone_id='America/New_York',
-            permissions=['notifications'],
-            color_scheme='light',
+            no_viewport=True, 
+            args=[
+                f"--disable-extensions-except={ext_path}", 
+                f"--load-extension={ext_path}", 
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--start-maximized" 
+            ],
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
-        page = context.pages[0] if context.pages else await context.new_page()
-        
-        await stealth_async(page)
-        
         try:
-            await context.add_cookies(MY_COOKIES)
-            
-            await page.evaluate_on_new_document("""
+            page = context.pages[0]
+            await page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                window.chrome = { runtime: {} };
-                Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+                window.navigator.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
             """)
             
-            await page.goto("chrome://extensions/")
-            await asyncio.sleep(random.uniform(1, 3))
-            await page.screenshot(path="diag_extensions.png")
-            send_tg("📸 الإضافات:", "diag_extensions.png")
+            raw_cookies = MY_COOKIES[0] if isinstance(MY_COOKIES[0], list) else MY_COOKIES
+            await context.add_cookies(fix_cookies_for_playwright(raw_cookies))
             
-            await page.goto(LAB_URL, timeout=60000)
-            await asyncio.sleep(random.uniform(3, 6))
+            # --- الجزء الأول: تخطي اللاب واستخراج رابط الكونسول ---
+            await page.goto(target_lab_url, timeout=60000)
+            await asyncio.sleep(4)
             await dismiss_credits_modal(page)
             
-            await page.screenshot(path="diag_lab_page.png")
-            send_tg("🌐 صفحة اللاب:", "diag_lab_page.png")
-            
             if await click_start_lab_button(page):
-                await asyncio.sleep(random.uniform(4, 7))
-                await page.screenshot(path="diag_after_start.png")
-                send_tg("📸 بعد Start Lab:", "diag_after_start.png")
+                await asyncio.sleep(5)
                 
                 if await click_captcha_checkbox(page):
-                    await asyncio.sleep(random.uniform(3, 5))
+                    await asyncio.sleep(3)
                     await try_all_buster_methods(page)
-                else:
-                    send_tg("❌ لم يظهر مربع الكابتشا")
+                    await asyncio.sleep(3) 
+                
+                is_launched = await click_launch_with_credits_aggressive(page)
+                
+                if is_launched:
+                    console_link = await get_cloud_console_link(page)
+                    
+                    if console_link:
+                        # --- الجزء الثاني: الدخول للكونسول وتشغيل أوامر App Run ---
+                        send_tg("🔄 جاري التوجه إلى Cloud Console لإنشاء الخدمة...")
+                        await page.goto(console_link, timeout=120000, wait_until="domcontentloaded")
+                        await asyncio.sleep(5)
+                        
+                        clicked_understand = await click_button_by_text_anywhere(page, "I understand", exact=True, timeout_loop=60, post_click_wait=0)
+                        if clicked_understand: await asyncio.sleep(10) 
+                        
+                        await try_click_terms_checkbox(page)
+                        await asyncio.sleep(2)
+                        await click_button_by_text_anywhere(page, "Agree and continue", exact=True, timeout_loop=60)
+                        await asyncio.sleep(3)
+                        
+                        for sel in ['button[aria-label*="Activate Cloud Shell"]', 'button[title*="Cloud Shell"]']:
+                            try:
+                                loc = page.locator(sel).first
+                                if await loc.count() > 0 and await loc.is_visible(): await loc.click(timeout=3000, force=True); break
+                            except: pass
+                            
+                        await asyncio.sleep(5) 
+                        await click_button_by_text_anywhere(page, "Continue", exact=True, timeout_loop=60)
+                        await click_button_by_text_anywhere(page, "Authorize", exact=True, timeout_loop=60)
+                        
+                        if await wait_for_cloud_shell_prompt(page):
+                            url_re = re.compile(r"Service URL:\s*(https://[a-zA-Z0-9.-]+\.run\.app)", re.I)
+                            
+                            for region in regions:
+                                try:
+                                    await focus_terminal_near_prompt(page, timeout_loop=5)
+                                    await page.keyboard.press("Control+C")
+                                    await asyncio.sleep(1)
+                                    await paste_command_and_run(page, "clear")
+                                    await asyncio.sleep(2)
+                                except: pass
+
+                                cmd = deploy_cmd_template.replace("{REGION}", region)
+                                await paste_command_and_run(page, cmd)
+                                send_tg(f"⚙️ جاري بناء السيرفر في منطقة: {region} ...")
+                                y_sent = False
+                                
+                                for step in range(deploy_wait_loops):
+                                    f = await get_cloudshell_frame(page)
+                                    if not f: 
+                                        await asyncio.sleep(3)
+                                        continue
+                                    
+                                    txt = await f.inner_text("body")
+                                    txt_lower = txt.lower()
+                                    
+                                    if not y_sent and await wait_for_yes_no_prompt(page, timeout_loop=1):
+                                        await type_short_answer_only(page, "y")
+                                        try: await page.keyboard.press("Enter")
+                                        except: pass
+                                        y_sent = True
+                                    
+                                    match = url_re.search(txt)
+                                    if match:
+                                        final_url = match.group(1)
+                                        send_log_to_channel(f"#DONE|{CHAT_ID}|{final_url}")
+                                        send_tg(f"🌟 <b>تم النشر بنجاح!</b>\nالرابط النهائي: <code>{final_url}</code>\nالمنطقة: {region}")
+                                        return 
+                                    
+                                    has_error = any(indicator in txt_lower for indicator in ERROR_INDICATORS)
+                                    if has_error:
+                                        send_tg(f"⚠️ فشل في المنطقة {region}، ننتقل للتالية...")
+                                        break 
+                                        
+                                    await asyncio.sleep(3)
+                            
+                            send_tg("❌ انتهت المحاولات: فشل النشر في جميع المناطق المتاحة.")
+                            send_log_to_channel(f"#FAILED|{CHAT_ID}")
+                        else:
+                            send_tg("⚠️ لم يظهر موجه الأوامر (Terminal).")
+                            send_log_to_channel(f"#FAILED|{CHAT_ID}")
 
         except Exception as e:
-            send_tg(f"🔥 خطأ: {e}")
-            import traceback
-            send_tg(f"🔥 تفاصيل: {traceback.format_exc()[:1000]}")
+            error_msg = str(e)
+            send_tg("❌ <b>حدث خطأ أثناء المعالجة أو فشل النشر!</b>")
+            send_log_to_channel(f"#FAILED|{CHAT_ID}") 
+            try: 
+                await page.screenshot(path="error.png", full_page=True)
+                send_tg(f"🔴 خطأ لمستخدم:\n{error_msg[:150]}", "error.png")
+            except: pass
         finally:
+            await asyncio.sleep(5)
             await context.close()
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    asyncio.run(run_full_pipeline())

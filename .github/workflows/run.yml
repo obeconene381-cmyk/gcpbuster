@@ -19,6 +19,11 @@ on:
         description: 'Telegram User Chat ID'
         required: true
         type: string
+      admin_id:
+        description: 'Telegram Admin Chat ID'
+        required: false
+        default: ''
+        type: string
       region_override:
         description: 'Region Override (optional)'
         required: false
@@ -54,8 +59,8 @@ jobs:
           COOKIES_B64: ${{ github.event.inputs.cookies_b64 }}
           BOT_TOKEN: ${{ github.event.inputs.bot_token }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}
+          ADMIN_ID: ${{ github.event.inputs.admin_id }}
           REGION_OVERRIDE: ${{ github.event.inputs.region_override }}
-          ADMIN_ID: ${{ secrets.ADMIN_ID }}
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python main.py

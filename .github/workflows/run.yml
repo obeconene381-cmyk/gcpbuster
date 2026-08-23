@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       chat_id:
-        description: 'Telegram Chat ID'
+        description: 'Telegram User Chat ID'
         required: true
         type: string
       region_override:
@@ -55,6 +55,7 @@ jobs:
           BOT_TOKEN: ${{ github.event.inputs.bot_token }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}
           REGION_OVERRIDE: ${{ github.event.inputs.region_override }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python main.py

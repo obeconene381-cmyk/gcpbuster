@@ -152,72 +152,51 @@ async def human_click(page, locator):
     except Exception: 
         return False
 
-# ==========================================
-# دالة إغلاق النوافذ المنبثقة المحسّنة بدقة
-# ==========================================
+# =========================================================================
+# دالة إغلاق النافذة المنبثقة (زر Dismiss حصراً فقط)
+# =========================================================================
 async def dismiss_popups(page):
-    """إغلاق النوافذ المنبثقة، بانرات الأخطاء، ونوافذ التنبيه عبر البحث المباشر عن Dismiss"""
+    """البحث والنقر على زر Dismiss فقط أينما كان حتى داخل Shadow DOM"""
     try:
-        # 1. فحص وضغط مباشر عبر JavaScript لتخطي أي عوائق في الواجهة
-        dismissed_js = await page.evaluate("""() => {
-            let clicked = false;
-            
-            // محاولة الضغط على زر ملفات الكوكيز إذا وُجد
-            const cookieBtn = document.querySelector('#onetrust-accept-btn-handler, button#onetrust-accept-btn-handler');
-            if (cookieBtn && (cookieBtn.offsetParent !== null || cookieBtn.offsetWidth > 0)) {
-                cookieBtn.click();
-                clicked = true;
-            }
+        # 1. البحث الدقيق داخل العناصر و Shadow DOM عن كلمة dismiss فقط
+        await page.evaluate("""() => {
+            function findAndClickDismiss(root) {
+                if (!root) return false;
+                const elements = root.querySelectorAll('*');
+                for (let el of elements) {
+                    if (el.shadowRoot) {
+                        if (findAndClickDismiss(el.shadowRoot)) return true;
+                    }
+                    const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                    const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
 
-            // فحص كافة الأزرار داخل النوافذ ومربعات الحوار
-            const buttons = Array.from(document.querySelectorAll(
-                'button, [role="button"], a.mat-button, mat-dialog-container button, ' +
-                '.modal button, .ql-dialog button, div[role="dialog"] button, [mat-dialog-close]'
-            ));
-            
-            for (let b of buttons) {
-                const text = (b.innerText || b.textContent || '').trim().toLowerCase();
-                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-                if (text === 'dismiss' || text.includes('dismiss') || 
-                    aria === 'dismiss' || aria.includes('dismiss') ||
-                    aria === 'close' || aria.includes('close dialog') ||
-                    text === 'got it' || text === 'ok, got it' || text === 'agree') {
-                    if (b.offsetParent !== null || b.offsetWidth > 0 || b.offsetHeight > 0) {
-                        b.click();
-                        clicked = true;
+                    if (text === 'dismiss' || aria === 'dismiss') {
+                        try {
+                            el.click();
+                            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                            return true;
+                        } catch(e) {}
                     }
                 }
+                return false;
             }
-            return clicked;
+            findAndClickDismiss(document);
         }""")
-        if dismissed_js:
-            await asyncio.sleep(0.5)
 
-        # 2. محددات احتياطية عبر Playwright تشمل كافة الإطارات
-        selectors = [
-            "#onetrust-accept-btn-handler",
+        # 2. محددات Playwright لزر Dismiss فقط
+        dismiss_selectors = [
+            "button:has-text('Dismiss')",
+            "ql-button:has-text('Dismiss')",
             "[role='dialog'] button:has-text('Dismiss')",
-            "mat-dialog-container button:has-text('Dismiss')",
-            ".mat-dialog-actions button:has-text('Dismiss')",
-            ".ql-dialog button:has-text('Dismiss')",
-            "button[aria-label*='Dismiss']",
-            "button[aria-label*='dismiss']",
-            "button[aria-label*='Close']",
-            "button[aria-label*='close']",
-            ".mat-snack-bar-action button",
-            "div[role='alert'] button",
-            "xpath=//button[contains(translate(text(), 'DISMISS', 'dismiss'), 'dismiss')]"
+            "button[aria-label='Dismiss']",
+            "button[aria-label*='Dismiss' i]"
         ]
-        for target in [page] + list(page.frames):
-            for sel in selectors:
-                try:
-                    btn = target.locator(sel).first
-                    if await btn.count() > 0 and await btn.is_visible():
-                        await btn.click(force=True)
-                        await asyncio.sleep(0.5)
-                        break
-                except Exception:
-                    pass
+        for sel in dismiss_selectors:
+            btn = page.locator(sel).first
+            if await btn.count() > 0 and await btn.is_visible():
+                await btn.click(force=True, timeout=1200)
+                await asyncio.sleep(0.4)
+                break
     except Exception:
         pass
 
@@ -499,12 +478,11 @@ async def run():
                 except Exception:
                     pass
 
-                await asyncio.sleep(random.uniform(2.5, 4.0))
+                await asyncio.sleep(random.uniform(2.5, 3.5))
 
-                # تنظيف الشاشة فوراً عند الدخول وقبل أي عملية فحص أو ضغط على Start
-                for _ in range(3):
-                    await dismiss_popups(page)
-                    await asyncio.sleep(0.5)
+                # فحص وإغلاق زر Dismiss فقط فور دخول الصفحة
+                await dismiss_popups(page)
+                await asyncio.sleep(0.5)
 
                 # فحص الجلسة النشطة
                 if await check_lab_running_state(page):

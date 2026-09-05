@@ -152,22 +152,72 @@ async def human_click(page, locator):
     except Exception: 
         return False
 
+# ==========================================
+# دالة إغلاق النوافذ المنبثقة المحسّنة بدقة
+# ==========================================
 async def dismiss_popups(page):
+    """إغلاق النوافذ المنبثقة، بانرات الأخطاء، ونوافذ التنبيه عبر البحث المباشر عن Dismiss"""
     try:
-        cookie_btn = page.locator("#onetrust-accept-btn-handler, button:has-text('Agree'), button:has-text('OK, got it')").first
-        if await cookie_btn.count() > 0 and await cookie_btn.is_visible():
-            await cookie_btn.click(force=True)
+        # 1. فحص وضغط مباشر عبر JavaScript لتخطي أي عوائق في الواجهة
+        dismissed_js = await page.evaluate("""() => {
+            let clicked = false;
+            
+            // محاولة الضغط على زر ملفات الكوكيز إذا وُجد
+            const cookieBtn = document.querySelector('#onetrust-accept-btn-handler, button#onetrust-accept-btn-handler');
+            if (cookieBtn && (cookieBtn.offsetParent !== null || cookieBtn.offsetWidth > 0)) {
+                cookieBtn.click();
+                clicked = true;
+            }
+
+            // فحص كافة الأزرار داخل النوافذ ومربعات الحوار
+            const buttons = Array.from(document.querySelectorAll(
+                'button, [role="button"], a.mat-button, mat-dialog-container button, ' +
+                '.modal button, .ql-dialog button, div[role="dialog"] button, [mat-dialog-close]'
+            ));
+            
+            for (let b of buttons) {
+                const text = (b.innerText || b.textContent || '').trim().toLowerCase();
+                const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+                if (text === 'dismiss' || text.includes('dismiss') || 
+                    aria === 'dismiss' || aria.includes('dismiss') ||
+                    aria === 'close' || aria.includes('close dialog') ||
+                    text === 'got it' || text === 'ok, got it' || text === 'agree') {
+                    if (b.offsetParent !== null || b.offsetWidth > 0 || b.offsetHeight > 0) {
+                        b.click();
+                        clicked = true;
+                    }
+                }
+            }
+            return clicked;
+        }""")
+        if dismissed_js:
             await asyncio.sleep(0.5)
 
-        dismiss_btn = page.locator("[role='dialog'] button:has-text('Dismiss'), .mat-dialog-actions button:has-text('Dismiss')").first
-        if await dismiss_btn.count() > 0 and await dismiss_btn.is_visible():
-            await dismiss_btn.click(force=True)
-            await asyncio.sleep(0.5)
-
-        red_btn = page.locator(".mat-snack-bar-action button, div[role='alert'] button, button[aria-label*='Dismiss']").first
-        if await red_btn.count() > 0 and await red_btn.is_visible():
-            await red_btn.click(force=True)
-            await asyncio.sleep(0.5)
+        # 2. محددات احتياطية عبر Playwright تشمل كافة الإطارات
+        selectors = [
+            "#onetrust-accept-btn-handler",
+            "[role='dialog'] button:has-text('Dismiss')",
+            "mat-dialog-container button:has-text('Dismiss')",
+            ".mat-dialog-actions button:has-text('Dismiss')",
+            ".ql-dialog button:has-text('Dismiss')",
+            "button[aria-label*='Dismiss']",
+            "button[aria-label*='dismiss']",
+            "button[aria-label*='Close']",
+            "button[aria-label*='close']",
+            ".mat-snack-bar-action button",
+            "div[role='alert'] button",
+            "xpath=//button[contains(translate(text(), 'DISMISS', 'dismiss'), 'dismiss')]"
+        ]
+        for target in [page] + list(page.frames):
+            for sel in selectors:
+                try:
+                    btn = target.locator(sel).first
+                    if await btn.count() > 0 and await btn.is_visible():
+                        await btn.click(force=True)
+                        await asyncio.sleep(0.5)
+                        break
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -450,7 +500,11 @@ async def run():
                     pass
 
                 await asyncio.sleep(random.uniform(2.5, 4.0))
-                await dismiss_popups(page)
+
+                # تنظيف الشاشة فوراً عند الدخول وقبل أي عملية فحص أو ضغط على Start
+                for _ in range(3):
+                    await dismiss_popups(page)
+                    await asyncio.sleep(0.5)
 
                 # فحص الجلسة النشطة
                 if await check_lab_running_state(page):
